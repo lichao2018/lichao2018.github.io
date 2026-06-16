@@ -82,7 +82,7 @@ canvas{display:block;width:100%;height:100%}
       <div class="hud-item"><span class="icon">🌊</span><span id="wave-txt">1</span></div>
       <div class="hud-item"><span class="icon">💰</span><span id="gold-txt">0</span></div>
       <div class="hud-item"><span class="icon">💀</span><span id="kill-txt">0</span></div>
-      <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.3.0</span></div>
+      <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.3.1</span></div>
     </div>
     <div id="skill-panel">
       <div id="skill-title">🔮 选择升级</div>
@@ -117,7 +117,7 @@ let G,PL,monsters,bullets,particles,golds,dmgNums,pets;
 let spawnTimer,attackTimer,gameLoop,skillGoldBase,nextSkillGold;
 let skillPanelShown=false,paused=false;
 let waveAnnounce=null,screenFlash=0,screenShake=0;
-const VERSION='v1.3.0';
+const VERSION='v1.3.1';
 
 // Enemy types: each has distinct profile
 // slime=tanky slow, bat=fast fragile, goblin=balanced, skeleton=slow heavy hitter, mage=ranged
@@ -318,6 +318,16 @@ function updatePets(dt){
       }
     }
   }
+}
+
+function findNearestMonster(){
+  let best=null,bestD=Infinity;
+  for(let m of monsters){
+    if(m.projectile)continue;
+    let d=dist(PL,m);
+    if(d<bestD){bestD=d;best=m}
+  }
+  return best;
 }
 
 // ---- SHOOTING (bullet projectiles, not laser) ----
@@ -632,10 +642,11 @@ function update(dt){
 function render(){
   ctx.clearRect(0,0,W,H);
 
+  let needRestore=false;
   if(screenShake>0){
-    ctx.save();
+    ctx.save();needRestore=true;
     ctx.translate(rand(-screenShake,screenShake),rand(-screenShake,screenShake));
-    screenShake-=.5;
+    screenShake=Math.max(0,screenShake-.5);
   }
 
   // Grid bg
@@ -803,7 +814,7 @@ function render(){
     screenFlash-=.5;
   }
 
-  if(screenShake>0||screenFlash>0)ctx.restore();
+  if(needRestore)ctx.restore();
 }
 
 function gameFrame(ts){
