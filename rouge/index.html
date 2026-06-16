@@ -70,11 +70,6 @@ canvas{display:block;width:100%;height:100%}
   cursor:pointer;transition:.2s;
 }
 #restart-btn:hover,#restart-btn:active{transform:scale(1.08)}
-.dmg-num{
-  position:absolute;color:#ff4444;font-size:14px;font-weight:900;
-  pointer-events:none;animation:floatUp .8s ease-out forwards;
-  text-shadow:0 0 4px rgba(255,0,0,.5);
-}
 @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-40px)}}
 </style>
 </head>
@@ -87,6 +82,7 @@ canvas{display:block;width:100%;height:100%}
       <div class="hud-item"><span class="icon">🌊</span><span id="wave-txt">1</span></div>
       <div class="hud-item"><span class="icon">💰</span><span id="gold-txt">0</span></div>
       <div class="hud-item"><span class="icon">💀</span><span id="kill-txt">0</span></div>
+      <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.3.0</span></div>
     </div>
     <div id="skill-panel">
       <div id="skill-title">🔮 选择升级</div>
@@ -117,25 +113,27 @@ const randi=(a,b)=>Math.floor(rand(a,b+1));
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 
-let G,PL,monsters,bullets,particles,golds,dmgNums;
+let G,PL,monsters,bullets,particles,golds,dmgNums,pets;
 let spawnTimer,attackTimer,gameLoop,skillGoldBase,nextSkillGold;
 let skillPanelShown=false,paused=false;
-let waveAnnounce=null;
+let waveAnnounce=null,screenFlash=0,screenShake=0;
+const VERSION='v1.3.0';
 
+// Enemy types: each has distinct profile
+// slime=tanky slow, bat=fast fragile, goblin=balanced, skeleton=slow heavy hitter, mage=ranged
 const MONSTERS={
-  slime:{emoji:"🟢",name:"史莱姆",hp:30,atk:5,spd:.6,s:18,gold:12,c:"#4ade80"},
-  bat:{emoji:"🦇",name:"蝙蝠",hp:20,atk:8,spd:1.2,s:16,gold:15,c:"#a78bfa"},
-  goblin:{emoji:"👹",name:"哥布林",hp:50,atk:12,spd:.8,s:20,gold:22,c:"#f87171"},
-  skeleton:{emoji:"💀",name:"骷髅兵",hp:70,atk:15,spd:.5,s:22,gold:30,c:"#d4d4d8"},
-  mage:{emoji:"🧙",name:"暗法师",hp:45,atk:20,spd:.4,s:18,gold:35,c:"#e879f9",range:150}
+  slime:{emoji:"🟢",name:"史莱姆",hp:40,atk:4,spd:.5,s:20,gold:12,c:"#4ade80",trait:"tank"},
+  bat:{emoji:"🦇",name:"蝙蝠",hp:18,atk:7,spd:1.6,s:14,gold:14,c:"#a78bfa",trait:"fast"},
+  goblin:{emoji:"👹",name:"哥布林",hp:35,atk:10,spd:.9,s:18,gold:20,c:"#f87171",trait:"balanced"},
+  skeleton:{emoji:"💀",name:"骷髅兵",hp:60,atk:18,spd:.45,s:22,gold:28,c:"#d4d4d8",trait:"heavy"},
+  mage:{emoji:"🧙",name:"暗法师",hp:30,atk:22,spd:.35,s:18,gold:35,c:"#e879f9",range:180,trait:"ranged"}
 };
 
-// Boss tiers: appears as boss from minWave, demoted to regular enemy from demoteWave
 const BOSS_TYPES=[
-  {key:'wolf',emoji:'🐺',name:'狼王',hp:120,atk:10,spd:.7,s:24,gold:40,c:'#94a3b8',minWave:1,demoteWave:4},
-  {key:'orc',emoji:'🧌',name:'兽人',hp:250,atk:18,spd:.55,s:26,gold:60,c:'#f97316',minWave:4,demoteWave:8},
-  {key:'dragon',emoji:'🐉',name:'暗龙',hp:500,atk:30,spd:.45,s:30,gold:100,c:'#6366f1',minWave:8,demoteWave:13},
-  {key:'demon',emoji:'👑',name:'魔王',hp:1000,atk:45,spd:.35,s:36,gold:200,c:'#dc2626',minWave:13,demoteWave:999}
+  {key:'wolf',emoji:'🐺',name:'狼王',hp:150,atk:12,spd:.8,s:26,gold:50,c:'#94a3b8',minWave:1,demoteWave:4,trait:'boss'},
+  {key:'orc',emoji:'🧌',name:'兽人',hp:300,atk:22,spd:.6,s:28,gold:70,c:'#f97316',minWave:4,demoteWave:8,trait:'boss'},
+  {key:'dragon',emoji:'🐉',name:'暗龙',hp:600,atk:35,spd:.5,s:32,gold:120,c:'#6366f1',minWave:8,demoteWave:13,range:200,trait:'boss'},
+  {key:'demon',emoji:'👑',name:'魔王',hp:1200,atk:50,spd:.4,s:38,gold:250,c:'#dc2626',minWave:13,demoteWave:999,trait:'boss'}
 ];
 
 const SKILLS={
@@ -144,30 +142,21 @@ const SKILLS={
   damage:{name:"力量强化",emoji:"💪",desc:"攻击力 +{n}%",maxLv:5,base:1,apply(p){p.dmgBonus+=.25}},
   pierce:{name:"穿透箭",emoji:"🏹",desc:"子弹穿透 +{n} 个敌人",maxLv:3,base:1,apply(p){p.pierce+=1}},
   explosive:{name:"爆炸弹",emoji:"💥",desc:"子弹命中时爆炸，范围 {n}",maxLv:4,base:0,apply(p){p.explosive=(p.explosive||0)+1}},
-  crit:{name:"致命一击",emoji:"🗡️",desc:"暴击率 +{n}%",maxLv:5,base:1,apply(p){p.critChance+=.12}},
-  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4}},
+  crit:{name:"致命一击",emoji:"🗡️",desc:"暴击率 +{n}%",maxLv:5,base:1,apply(p){p.critChance+=.12},format:'pct'},
+  knockback:{name:"击退之力",emoji:"🛡️",desc:"击退敌人 {n} 格",maxLv:4,base:0,apply(p){p.knockback=(p.knockback||0)+15}},
+  summon:{name:"召唤宝宝",emoji:"🐾",desc:"召唤 {n} 只战斗宝宝",maxLv:4,base:0,apply(p){p.summonCount=(p.summonCount||0)+1}},
+  freeze:{name:"冰霜弹",emoji:"❄️",desc:"{n}% 几率减速敌人",maxLv:4,base:1,apply(p){p.freezeChance+=.18},format:'pct'},
   poison:{name:"剧毒",emoji:"☠️",desc:"击中附加 {n} 秒中毒",maxLv:4,base:0,apply(p){p.poisonDot=(p.poisonDot||0)+1.5}},
-  freeze:{name:"冰霜弹",emoji:"❄️",desc:"{n}% 几率减速敌人",maxLv:4,base:1,apply(p){p.freezeChance+=.18}},
-  heal:{name:"生命汲取",emoji:"🩸",desc:"击杀回复 {n}% HP",maxLv:4,base:0,apply(p){p.vampire=(p.vampire||0)+.05}},
-  chain:{name:"连锁闪电",emoji:"⚡",desc:"{n}% 几率连锁2个敌人",maxLv:4,base:0,apply(p){p.chainChance=(p.chainChance||0)+.2}},
-  maxHp:{name:"生命上限",emoji:"❤️",desc:"最大生命 +{n}%",maxLv:5,base:1,apply(p){p.maxHpBonus+=.3}},
-  movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25}},
-  gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35}},
-  regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01}},
+  heal:{name:"生命汲取",emoji:"🩸",desc:"击杀回复 {n}% HP",maxLv:4,base:0,apply(p){p.vampire=(p.vampire||0)+.05},format:'pct'},
+  chain:{name:"连锁闪电",emoji:"⚡",desc:"{n}% 几率连锁2个敌人",maxLv:4,base:0,apply(p){p.chainChance=(p.chainChance||0)+.2},format:'pct'},
+  maxHp:{name:"生命上限",emoji:"❤️",desc:"最大生命 +{n}%",maxLv:5,base:1,apply(p){p.maxHpBonus+=.3},format:'pct'},
+  movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25},format:'pct'},
+  gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35},format:'pct'},
+  regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01},format:'pct'},
+  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4},format:'pct'},
 }
 
 function getSkillLevel(p,key){return p.skills[key]||0}
-function getSkillVal(p,key,n=1){
-  let lv=getSkillLevel(p,key),s=SKILLS[key];
-  if(!s)return 0;
-  if(key==='explosive')return lv*1.2;
-  if(key==='poison')return lv*1.5;
-  if(key==='vampire')return lv*.05;
-  if(key==='regen')return lv*.01;
-  if(key==='chain')return lv*.2;
-  if(key==='freeze')return lv*.18;
-  return s.base+lv*n;
-}
 
 function initPlayer(){
   return{
@@ -175,13 +164,15 @@ function initPlayer(){
     multi:1,pierce:0,explosive:0,critChance:0,dmgBonus:1,atkSpdBonus:1,
     magnetRange:1,poisonDot:0,freezeChance:0,vampire:0,chainChance:0,
     maxHpBonus:1,spdBonus:1,goldBonus:1,regen:0,gold:0,
+    knockback:0,summonCount:0,
     skills:{},dragX:null
   }
 }
 
 function initGame(){
   PL=initPlayer();monsters=[];bullets=[];particles=[];golds=[];
-  dmgNums=[];G={wave:1,kills:0,score:0,time:0,totalGold:0,waveSpawned:0,bossSpawned:false};
+  dmgNums=[];pets=[];
+  G={wave:1,kills:0,score:0,time:0,totalGold:0,waveSpawned:0,bossSpawned:false};
   spawnTimer=0;attackTimer=0;skillGoldBase=30;nextSkillGold=skillGoldBase;
   skillPanelShown=false;paused=false;waveAnnounce={text:'第1波',timer:90};
   R('skill-panel').style.display='none';R('game-over').style.display='none';
@@ -196,39 +187,47 @@ function updateHUD(){
 }
 
 function getWaveMonsterCount(){return 4+Math.floor(G.wave*1.2)}
-function getSpawnInterval(){return Math.max(350,1600-G.wave*60)}
+function getSpawnInterval(){return Math.max(300,1600-G.wave*60)}
 
 function getMonsterTier(){
   let r=Math.random(),w=G.wave;
-  // Demoted bosses as regular enemies (low chance)
   let demoted=BOSS_TYPES.filter(b=>w>=b.demoteWave);
-  if(demoted.length>0&&r<.05*Math.min(demoted.length,3)){
+  if(demoted.length>0&&r<.04*Math.min(demoted.length,3)){
     return demoted[randi(0,demoted.length-1)];
   }
-  if(r<.3)return'slime';
-  if(r<.55)return'bat';
-  if(r<.73)return'goblin';
-  if(r<.87)return'skeleton';
+  if(r<.25)return'slime';
+  if(r<.5)return'bat';
+  if(r<.7)return'goblin';
+  if(r<.85)return'skeleton';
   if(r<.95)return'mage';
   return'skeleton';
 }
 
+// Enemy gains skills based on wave
+function getEnemySkills(wave){
+  let es={slowAura:false,knockback:false,poison:false};
+  if(wave>=4&&Math.random()<.15)es.slowAura=true;
+  if(wave>=6&&Math.random()<.12)es.knockback=true;
+  if(wave>=9&&Math.random()<.1)es.poison=true;
+  return es;
+}
+
 function spawnRegularMonster(){
   let tier=getMonsterTier();
-  let base,s=1+G.wave*.12;
+  let base,s=1+G.wave*.15;
+  let isBossTier=false;
   if(typeof tier==='object'){
-    // Demoted boss as regular enemy
-    base=tier;
-    s*=.4;
+    base=tier;isBossTier=true;s*=.4;
   }else{
     base=MONSTERS[tier];
-    if(tier==='mage')s*=1.2;
+    if(tier==='mage')s*=1.15;
   }
   let mx=rand(40,W-40),my=rand(-60,-10);
   let hp=Math.round(base.hp*s);
   let atk=Math.round(base.atk*s);
   let gold=Math.round(base.gold*s);
-  let spd=base.spd*Math.min(1+G.wave*.03,2.2);
+  let spd=base.spd*Math.min(1+G.wave*.04,2.5);
+  let es=isBossTier?{slowAura:false,knockback:false,poison:false}:getEnemySkills(G.wave);
   monsters.push({
     emoji:base.emoji,name:base.name,
     hp:hp,maxHp:hp,atk:atk,spd:spd,
@@ -236,15 +235,15 @@ function spawnRegularMonster(){
     x:mx,y:my,boss:false,r:base.s,
     c:base.c,range:base.range||0,
     poisonTimer:0,freezeTimer:0,hitFlash:0,
-    wobble:rand(0,PI*2)
+    wobble:rand(0,PI*2),
+    slowAura:es.slowAura,knockback:es.knockback,poisonSpit:es.poison
   });
 }
 
 function spawnWaveBoss(){
-  // Pick the highest available boss tier for current wave
   let available=BOSS_TYPES.filter(b=>b.minWave<=G.wave);
   let bossDef=available[available.length-1];
-  let s=1+G.wave*.12;
+  let s=1+G.wave*.15;
   let hp=Math.round(bossDef.hp*s*2.5);
   let atk=Math.round(bossDef.atk*s*1.8);
   let gold=Math.round(bossDef.gold*s*1.5);
@@ -256,33 +255,88 @@ function spawnWaveBoss(){
     c:bossDef.c,boss:true,
     range:bossDef.range||0,
     poisonTimer:0,freezeTimer:0,hitFlash:0,
-    wobble:rand(0,PI*2)
+    wobble:rand(0,PI*2),
+    slowAura:G.wave>=5,knockback:G.wave>=8,poisonSpit:G.wave>=10
   });
   waveAnnounce={text:'⚠️ BOSS来袭',timer:100};
 }
 
-function findNearestMonster(){
-  let nearest=null,minD=Infinity;
-  for(let m of monsters){
-    if(m.projectile)continue;
-    let d=dist(PL,m);
-    if(d<PL.atkRange&&d<minD){minD=d;nearest=m}
+// ---- PETS ----
+function spawnPets(count){
+  for(let i=0;i<count;i++){
+    let ang=PI*2*i/count;
+    pets.push({
+      x:PL.x+Math.cos(ang)*30,
+      y:PL.y+Math.sin(ang)*30,
+      hp:40+G.wave*5,maxHp:40+G.wave*5,
+      atk:Math.round(PL.atk*.4),spd:3,
+      s:12,life:15+getSkillLevel(PL,'summon')*5,
+      shootTimer:0,shootInterval:1.2,
+      emoji:['🐕','🐈','🐉','🦅'][i%4],
+      c:'#60a5fa'
+    });
   }
-  return nearest;
 }
 
+function updatePets(dt){
+  for(let i=pets.length-1;i>=0;i--){
+    let p=pets[i];
+    p.life-=dt;
+    if(p.life<=0){spawnParticles(p.x,p.y,6,'#60a5fa');pets.splice(i,1);continue}
+    // Follow player loosely
+    let dx=PL.x-p.x,dy=PL.y-p.y,d=Math.hypot(dx,dy);
+    if(d>50){p.x+=dx/d*p.spd;p.y+=dy/d*p.spd}
+    else if(d>20){p.x+=dx/d*p.spd*.3;p.y+=dy/d*p.spd*.3}
+    // Auto attack nearest monster
+    p.shootTimer+=dt;
+    if(p.shootTimer>=p.shootInterval){
+      let nearest=null,minD=300;
+      for(let m of monsters){
+        if(m.projectile)continue;
+        let dd=dist(p,m);
+        if(dd<minD){minD=dd;nearest=m}
+      }
+      if(nearest){
+        p.shootTimer=0;
+        let ang=Math.atan2(nearest.y-p.y,nearest.x-p.x);
+        bullets.push({
+          x:p.x,y:p.y-6,
+          vx:Math.cos(ang)*6,vy:Math.sin(ang)*6,
+          dmg:p.atk,pierce:0,hit:new Set(),explosive:0,
+          poison:0,freeze:0,crit:false,
+          isPet:true,cx:p.x,cy:p.y-6
+        });
+        spawnParticles(p.x,p.y,2,'#60a5fa');
+      }
+    }
+    // Check if monster touches pet
+    for(let m of monsters){
+      if(m.projectile)continue;
+      if(dist(p,m)<p.s+m.s){
+        p.hp-=m.atk*dt;
+        if(p.hp<=0){spawnParticles(p.x,p.y,8,'#60a5fa');pets.splice(i,1);break}
+      }
+    }
+  }
+}
+
+// ---- SHOOTING (bullet projectiles, not laser) ----
 function shoot(target){
   let ang=Math.atan2(target.y-PL.y,target.x-PL.x);
   let crit=Math.random()<PL.critChance;
   for(let i=0;i<PL.multi;i++){
     let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.12;
     let a=ang+spread;
+    let isCrit=crit&&i===0;
     bullets.push({
-      x:PL.x,y:PL.y-10,vx:Math.cos(a)*8,vy:Math.sin(a)*8,
-      dmg:PL.atk*PL.dmgBonus*(crit?2.5:1),
+      x:PL.x,y:PL.y-10,
+      vx:Math.cos(a)*10,vy:Math.sin(a)*10,
+      dmg:PL.atk*PL.dmgBonus*(isCrit?3:1),
       pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
       poison:PL.poisonDot,freeze:PL.freezeChance,
-      crit,cx:PL.x,cy:PL.y-10
+      crit:isCrit,isPet:false,
+      cx:PL.x,cy:PL.y-10,
+      trail:[]
     });
   }
 }
@@ -293,9 +347,35 @@ function hitMonster(bullet,monster,idx){
   let dmg=Math.round(bullet.dmg);
   monster.hp-=dmg;monster.hitFlash=8;
   spawnDamageNum(monster.x,monster.y,dmg,bullet.crit);
-  spawnParticles(monster.x,monster.y,4,'#ff6b6b');
+
+  // Crit effects
+  if(bullet.crit){
+    screenFlash=5;screenShake=4;
+    for(let i=0;i<12;i++){
+      particles.push({x:monster.x+rand(-15,15),y:monster.y+rand(-15,15),
+        vx:rand(-4,4),vy:rand(-5,-1),life:rand(15,35),maxLife:35,
+        color:Math.random()>.5?'#ffd700':'#ffaa00'});
+    }
+    dmgNums.push({x:monster.x+rand(-5,5),y:monster.y-30,v:'暴击!',crit:true,life:0});
+    spawnParticles(monster.x,monster.y,6,'#ffd700');
+  }else{
+    spawnParticles(monster.x,monster.y,4,'#ff6b6b');
+  }
+
+  // Knockback
+  if(PL.knockback>0&&!bullet.isPet){
+    let kbAng=Math.atan2(monster.y-PL.y,monster.x-PL.x);
+    monster.x+=Math.cos(kbAng)*PL.knockback;
+    monster.y+=Math.sin(kbAng)*PL.knockback;
+    monster.x=clamp(monster.x,monster.s,W-monster.s);
+    monster.y=clamp(monster.y,-H*.1,H);
+  }
+
+  // Poison
   if(bullet.poison>0){monster.poisonTimer=Math.max(monster.poisonTimer||0,bullet.poison*60)}
+  // Freeze
   if(Math.random()<bullet.freeze)monster.freezeTimer=90;
+  // Explosive
   if(bullet.explosive>0){
     for(let i=monsters.length-1;i>=0;i--){
       let m=monsters[i];if(m===monster)continue;
@@ -303,6 +383,7 @@ function hitMonster(bullet,monster,idx){
     }
     spawnParticles(monster.x,monster.y,8,'#fbbf24');
   }
+  // Chain
   if(Math.random()<PL.chainChance){
     let candidates=monsters.filter((m,i)=>{if(!bullet.hit.has(i)&&m!==monster)return dist(monster,m)<150;return false});
     if(candidates.length>0){
@@ -373,27 +454,25 @@ function getRandomSkills(n=3){
   return result;
 }
 
+function calcSkillDesc(key,lv){
+  let s=SKILLS[key];
+  if(key==='explosive')return Math.round(lv*1.2);
+  if(key==='poison')return Math.round(lv*1.5);
+  if(key==='vampire'||key==='regen')return Math.round(lv*1)+'%';
+  if(key==='chain'||key==='freeze')return Math.round(lv*18)+'%';
+  if(key==='crit')return Math.round(lv*12)+'%';
+  if(key==='knockback')return lv*15;
+  if(key==='summon')return lv;
+  return s.base+lv;
+}
+
 function showSkillPanel(){
   let panel=R('skill-panel'),cards=R('skill-cards');
   panel.style.display='flex';cards.innerHTML='';
   let skills=getRandomSkills(3);
   for(let key of skills){
-    let s=SKILLS[key],lv=getSkillLevel(PL,key)+1,val;
-    // Calculate the value for next level
-    if(key==='explosive')val=lv*1.2;
-    else if(key==='poison')val=lv*1.5;
-    else if(key==='vampire')val=lv*.05;
-    else if(key==='regen')val=lv*.01;
-    else if(key==='chain')val=lv*.2;
-    else if(key==='freeze')val=lv*.18;
-    else val=s.base+lv;
-    // Format as integer or percentage
-    let descStr;
-    if(key==='regen'||key==='vampire'||key==='freeze'||key==='chain'){
-      descStr=Math.round(val*100)+'%';
-    }else{
-      descStr=Math.round(val);
-    }
+    let s=SKILLS[key],lv=getSkillLevel(PL,key)+1;
+    let descStr=calcSkillDesc(key,lv);
     let desc=s.desc.replace('{n}',descStr);
     let div=document.createElement('div');
     div.className='skill-card';
@@ -412,6 +491,8 @@ function pickSkill(key){
   R('skill-panel').style.display='none';
   skillPanelShown=false;paused=false;
   if(PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+20);
+  // Summon pets immediately if picking summon skill
+  if(key==='summon')spawnPets(PL.summonCount);
   updateHUD();
 }
 
@@ -425,10 +506,10 @@ function update(dt){
   if(paused)return;
   dt=Math.min(dt,.1);G.time+=dt;
 
-  // Player HP
+  // Regen
   if(PL.regen>0&&PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+PL.maxHp*PL.regen*dt);
 
-  // Auto attack
+  // Auto attack - shoot bullets upward toward nearest
   attackTimer+=dt;
   if(attackTimer>=1/(PL.atkSpeed*PL.atkSpdBonus)){
     attackTimer=0;
@@ -436,36 +517,43 @@ function update(dt){
     if(target)shoot(target);
   }
 
-  // Spawn regular monsters (only if boss not yet spawned this wave)
+  // Pets
+  updatePets(dt);
+
+  // Spawn
   spawnTimer+=dt;
   let spawnInt=getSpawnInterval()/1000;
   if(!G.bossSpawned&&spawnTimer>=spawnInt&&G.waveSpawned<getWaveMonsterCount()){
-    spawnTimer=0;
-    spawnRegularMonster();
-    G.waveSpawned++;
+    spawnTimer=0;spawnRegularMonster();G.waveSpawned++;
   }
 
-  // All regulars spawned and cleared -> spawn boss
   if(!G.bossSpawned&&G.waveSpawned>=getWaveMonsterCount()&&!monsters.some(m=>!m.boss&&!m.projectile)){
-    spawnWaveBoss();
-    G.bossSpawned=true;
+    spawnWaveBoss();G.bossSpawned=true;
   }
 
-  // Boss killed -> next wave
   if(G.bossSpawned&&monsters.length===0&&spawnTimer>1.5){
-    G.wave++;
-    G.waveSpawned=0;
-    G.bossSpawned=false;
-    spawnTimer=0;
+    G.wave++;G.waveSpawned=0;G.bossSpawned=false;spawnTimer=0;
     waveAnnounce={text:'第'+G.wave+'波',timer:90};
     updateHUD();
   }
 
+  // Player slow debuff
+  let playerSpdMult=1;
+
   // Update monsters
   for(let i=monsters.length-1;i>=0;i--){
     let m=monsters[i];
-    if(m.projectile){m.x+=m.vx;m.y+=m.vy;m.life--;if(m.life<=0||m.x<-30||m.x>W+30||m.y<-30||m.y>H+30){monsters.splice(i,1);continue}
-      let pd=dist(m,PL);if(pd<PL.r+m.s){PL.hp-=Math.round(m.atk);spawnParticles(PL.x,PL.y,3,'#e879f9');monsters.splice(i,1);continue}else continue}
+    if(m.projectile){
+      m.x+=m.vx;m.y+=m.vy;m.life--;
+      for(let t=0;t<2;t++)particles.push({x:m.x+rand(-3,3),y:m.y+rand(-3,3),vx:rand(-.5,.5),vy:rand(-.5,.5),life:10,maxLife:10,color:m.c});
+      if(m.life<=0||m.x<-30||m.x>W+30||m.y<-30||m.y>H+30){monsters.splice(i,1);continue}
+      let pd=dist(m,PL);if(pd<PL.r+m.s){
+        PL.hp-=Math.round(m.atk);
+        spawnDamageNum(PL.x,PL.y-20,Math.round(m.atk),false);
+        spawnParticles(PL.x,PL.y,8,'#e879f9');
+        screenFlash=8;screenShake=6;
+        monsters.splice(i,1);continue
+      }else continue}
     m.wobble+=dt*4;
     if(m.freezeTimer>0){m.freezeTimer-=1;continue}
     if(m.poisonTimer>0){
@@ -475,30 +563,46 @@ function update(dt){
     }
     if(m.hitFlash>0)m.hitFlash--;
 
+    // Enemy slow aura on player
+    if(m.slowAura&&dist(m,PL)<80)playerSpdMult=Math.min(playerSpdMult,.5);
+
     let dx=PL.x-m.x,dy=PL.y-m.y,d=Math.hypot(dx,dy);
     if(m.range&&d<m.range){
       let shootTimer=m._shootTimer||0;m._shootTimer=shootTimer+dt;
       if(m._shootTimer>1.8){
-        m._shootTimer=0;let ang=Math.atan2(PL.y-m.y,PL.x-m.x),sp=3;
-        monsters.push({emoji:"🔮",name:"魔法弹",hp:1,maxHp:1,atk:m.atk,spd:sp,s:6,x:m.x,y:m.y,boss:false,
+        m._shootTimer=0;let ang=Math.atan2(PL.y-m.y,PL.x-m.x),sp=3.5;
+        monsters.push({emoji:"🔮",name:"魔法弹",hp:1,maxHp:1,atk:m.atk,spd:sp,s:12,x:m.x,y:m.y,boss:false,
           gold:0,c:m.c,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:0,projectile:true,
           vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:180});
       }
     }else if(d>m.s+PL.r){
       m.x+=dx/d*m.spd;m.y+=dy/d*m.spd;
     }else{
-      PL.hp-=Math.round(m.atk*dt);spawnParticles(PL.x,PL.y,2,'#ff0000');
+      let dmg=Math.round(m.atk*dt);
+      PL.hp-=dmg;
+      if(dmg>0)spawnDamageNum(PL.x,PL.y-20,dmg,false);
+      spawnParticles(PL.x,PL.y,4,'#ff4444');
+      spawnParticles(PL.x,PL.y,3,'#fbbf24');
+      screenFlash=Math.max(screenFlash,3);screenShake=Math.max(screenShake,3);
+      // Enemy knockback player
+      if(m.knockback){
+        let kbAng=Math.atan2(PL.y-m.y,PL.x-m.x);
+        PL.x+=Math.cos(kbAng)*20;PL.y+=Math.sin(kbAng)*20;
+        PL.x=clamp(PL.x,PL.r,W-PL.r);PL.y=clamp(PL.y,PL.r,H-PL.r);
+      }
       if(PL.hp<=0){gameOver();return}
     }
     m.x=clamp(m.x,m.s,W-m.s);
     if(m.y>H+60){monsters.splice(i,1);continue}
   }
 
-  // Update bullets
+  // Update bullets (projectiles with trail)
   for(let i=bullets.length-1;i>=0;i--){
     let b=bullets[i];
+    // Store trail
+    if(!b.isPet){b.trail.push({x:b.x,y:b.y});if(b.trail.length>5)b.trail.shift()}
     b.x+=b.vx;b.y+=b.vy;
-    if(b.x<-20||b.x>W+20||b.y<-20||b.y>H+20){bullets.splice(i,1);continue}
+    if(b.x<-20||b.x>W+20||b.y<-40||b.y>H+20){bullets.splice(i,1);continue}
     let hit=false;
     for(let j=monsters.length-1;j>=0;j--){
       if(dist(b,monsters[j])<monsters[j].s+4){
@@ -509,100 +613,133 @@ function update(dt){
     if(hit){b.pierce--}
   }
 
-  // Update particles
+  // Particles
   for(let i=particles.length-1;i>=0;i--){
     let p=particles[i];p.life--;p.x+=p.vx;p.y+=p.vy;
     if(p.life<=0)particles.splice(i,1);
   }
 
-  // Gold & damage nums
+  // Gold & dmg nums
   collectGold();
   for(let i=dmgNums.length-1;i>=0;i--){
     let d=dmgNums[i];d.life++;
     if(d.life>40)dmgNums.splice(i,1);
   }
 
-  checkSkillPanel();
-  updateHUD();
+  checkSkillPanel();updateHUD();
 }
 
 function render(){
   ctx.clearRect(0,0,W,H);
 
+  if(screenShake>0){
+    ctx.save();
+    ctx.translate(rand(-screenShake,screenShake),rand(-screenShake,screenShake));
+    screenShake-=.5;
+  }
+
   // Grid bg
   ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=.5;
-  for(let x=0;x<W;x+=40)ctx.strokeRect(x,0,0,H);
-  for(let y=0;y<H;y+=40)ctx.strokeRect(0,y,W,0);
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
 
   // Particles
   for(let p of particles){
     let a=p.life/p.maxLife;
-    ctx.globalAlpha=a;
-    ctx.fillStyle=p.color;
+    ctx.globalAlpha=a;ctx.fillStyle=p.color;
     ctx.beginPath();ctx.arc(p.x,p.y,2*a,0,PI*2);ctx.fill();
   }
   ctx.globalAlpha=1;
 
   // Gold
   for(let g of golds){
-    ctx.fillStyle='#ffd700';ctx.font='14px serif';
-    ctx.fillText('🪙',g.x-8,g.y+5);
+    ctx.font='14px serif';ctx.textAlign='center';
+    ctx.fillText('🪙',g.x,g.y+5);
   }
 
-  // Bullets
+  // Bullets (projectile style, not laser)
   for(let b of bullets){
-    ctx.strokeStyle=b.crit?'#ff0':'#ffd700';
-    ctx.lineWidth=b.crit?3:2;ctx.lineCap='round';
-    ctx.beginPath();ctx.moveTo(b.cx,b.cy);ctx.lineTo(b.x,b.y);ctx.stroke();
-    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,b.crit?4:2.5,0,PI*2);ctx.fill();
+    let col=b.crit?'#ffd700':b.isPet?'#60a5fa':'#ffdd57';
+    let sz=b.crit?5:b.isPet?3:3.5;
+    // Trail
+    if(b.trail&&b.trail.length>1){
+      for(let t=0;t<b.trail.length;t++){
+        let a=(t+1)/b.trail.length*.5;
+        ctx.globalAlpha=a;ctx.fillStyle=col;
+        ctx.beginPath();ctx.arc(b.trail[t].x,b.trail[t].y,sz*(t/b.trail.length),0,PI*2);ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+    // Bullet head glow
+    ctx.shadowColor=col;ctx.shadowBlur=b.crit?12:6;
+    ctx.fillStyle=col;
+    ctx.beginPath();ctx.arc(b.x,b.y,sz,0,PI*2);ctx.fill();
+    // White core
+    ctx.shadowBlur=0;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(b.x,b.y,sz*.5,0,PI*2);ctx.fill();
+  }
+
+  // Pets
+  for(let p of pets){
+    ctx.save();ctx.translate(p.x,p.y);
+    ctx.font='20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(p.emoji,0,0);
+    // Pet HP bar
+    let bw=20,bh=3;
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(-bw/2,-14,bw,bh);
+    let hpR=p.hp/p.maxHp;
+    ctx.fillStyle=hpR>.5?'#60a5fa':'#3b82f6';
+    ctx.fillRect(-bw/2,-14,bw*hpR,bh);
+    // Life timer
+    ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='9px sans-serif';
+    ctx.fillText(Math.ceil(p.life)+'s',0,-20);
+    ctx.restore();
   }
 
   // Monsters
   for(let m of monsters){
     ctx.save();ctx.translate(m.x,m.y+Math.sin(m.wobble)*2);
-    // Shadow
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,m.s*.7,m.s*.6,m.s*.15,0,0,PI*2);ctx.fill();
-    // Glow boss
     if(m.boss){ctx.shadowColor=m.c;ctx.shadowBlur=20}
-    // HP bar bg
+    if(m.projectile){ctx.shadowColor=m.c;ctx.shadowBlur=18}
     if(!m.projectile){
-    let bw=m.s*2.2,bh=4;
-    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(-bw/2,-m.s-bh-4,bw,bh);
-    let hpR=m.hp/m.maxHp;
-    ctx.fillStyle=hpR>.5?'#4ade80':hpR>.25?'#fbbf24':'#ef4444';
-    ctx.fillRect(-bw/2,-m.s-bh-4,bw*hpR,bh);
+      let bw=m.s*2.2,bh=4;
+      ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(-bw/2,-m.s-bh-4,bw,bh);
+      let hpR=m.hp/m.maxHp;
+      ctx.fillStyle=hpR>.5?'#4ade80':hpR>.25?'#fbbf24':'#ef4444';
+      ctx.fillRect(-bw/2,-m.s-bh-4,bw*hpR,bh);
     }
-    // Emoji
     ctx.font=`${m.s*2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(m.emoji,0,0);
-    if(!m.projectile){
-    // Boss name tag
-    if(m.boss){
-      ctx.shadowBlur=0;
-      ctx.fillStyle='#ff6b6b';ctx.font='bold 11px sans-serif';
-      ctx.fillText(m.name,0,-m.s-14);
+    if(m.projectile){
+      ctx.shadowBlur=0;ctx.strokeStyle=m.c;ctx.lineWidth=2;ctx.globalAlpha=.6;
+      ctx.beginPath();ctx.arc(0,0,m.s+4,0,PI*2);ctx.stroke();ctx.globalAlpha=1;
     }
-    // Poison
-    if(m.poisonTimer>0){ctx.fillStyle='rgba(139,92,246,.6)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
-    // Freeze
-    if(m.freezeTimer>0){ctx.fillStyle='rgba(147,197,253,.4)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
-    // Hit flash
-    if(m.hitFlash>0){ctx.fillStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.arc(0,0,m.s+2,0,PI*2);ctx.fill()}
+    if(!m.projectile){
+      if(m.boss){ctx.shadowBlur=0;ctx.fillStyle='#ff6b6b';ctx.font='bold 11px sans-serif';ctx.fillText(m.name,0,-m.s-14)}
+      // Trait/skill icons
+      let icons=[];
+      if(m.slowAura)icons.push('❄️');
+      if(m.knockback)icons.push('💨');
+      if(m.poisonSpit)icons.push('☠️');
+      if(icons.length>0){
+        ctx.font='10px serif';
+        ctx.fillText(icons.join(''),0,m.s+12);
+      }
+      if(m.poisonTimer>0){ctx.fillStyle='rgba(139,92,246,.6)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
+      if(m.freezeTimer>0){ctx.fillStyle='rgba(147,197,253,.4)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
+      if(m.hitFlash>0){ctx.fillStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.arc(0,0,m.s+2,0,PI*2);ctx.fill()}
     }
     ctx.restore();
   }
 
   // Player
   {
-    let p=PL;
-    ctx.save();ctx.translate(p.x,p.y);
+    let p=PL;ctx.save();ctx.translate(p.x,p.y);
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,p.r*.7,p.r*.55,p.r*.15,0,0,PI*2);ctx.fill();
     ctx.shadowColor='#60a5fa';ctx.shadowBlur=12;
     ctx.font='36px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🧝',0,-2);
-    ctx.restore();
-
-    // HP bar above player
+    ctx.fillText('🧝',0,-2);ctx.restore();
     let bw=p.r*2,bh=5;
     ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-bw/2,p.y-p.r-bh-8,bw,bh);
     let hpR=p.hp/p.maxHp;
@@ -613,9 +750,12 @@ function render(){
   // Damage numbers
   for(let d of dmgNums){
     let a=1-d.life/40;
-    ctx.fillStyle=d.crit?`rgba(255,215,0,${a})`:`rgba(255,255,255,${a})`;
-    ctx.font=`${d.crit?18:14}px bold sans-serif`;ctx.textAlign='center';
-    ctx.fillText(d.crit?d.v+'!':d.v,d.x,d.y-a*25);
+    let isCritText=d.v==='暴击!';
+    ctx.fillStyle=isCritText?`rgba(255,100,100,${a})`:d.crit?`rgba(255,215,0,${a})`:`rgba(255,255,255,${a})`;
+    ctx.font=`${d.crit?(isCritText?20:18):14}px bold sans-serif`;ctx.textAlign='center';
+    ctx.shadowColor=d.crit?'#ffd700':'transparent';ctx.shadowBlur=d.crit?8:0;
+    ctx.fillText(d.v+(d.crit&&!isCritText?'!':''),d.x,d.y-a*28);
+    ctx.shadowBlur=0;
   }
 
   // Wave announcement
@@ -625,11 +765,9 @@ function render(){
     ctx.globalAlpha=a;
     ctx.fillStyle=waveAnnounce.text.includes('BOSS')?'#ef4444':'#ffd700';
     ctx.font='bold 26px sans-serif';ctx.textAlign='center';
-    ctx.shadowColor=waveAnnounce.text.includes('BOSS')?'#ef4444':'#ffd700';
-    ctx.shadowBlur=15;
+    ctx.shadowColor=waveAnnounce.text.includes('BOSS')?'#ef4444':'#ffd700';ctx.shadowBlur=15;
     ctx.fillText(waveAnnounce.text,W/2,H/2-60);
-    ctx.shadowBlur=0;
-    ctx.globalAlpha=1;
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
   }
 
   // Gold progress bar
@@ -653,6 +791,19 @@ function render(){
       ctx.fillText(sk.emoji+'Lv.'+PL.skills[key],10+i*60,H-42);
     }
   }
+
+  // Version
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px sans-serif';ctx.textAlign='right';
+  ctx.fillText(VERSION,W-8,H-62);ctx.textAlign='center';
+
+  // Screen flash
+  if(screenFlash>0){
+    ctx.fillStyle=`rgba(255,0,0,${screenFlash*.04})`;
+    ctx.fillRect(-20,-20,W+40,H+40);
+    screenFlash-=.5;
+  }
+
+  if(screenShake>0||screenFlash>0)ctx.restore();
 }
 
 function gameFrame(ts){
@@ -681,23 +832,6 @@ c.addEventListener('pointermove',e=>{
 c.addEventListener('pointerup',e=>{
   if(paused)return;
   if(PL.dragX!==null){PL.dragX=null;return}
-  let rect=c.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
-  let tx=(e.clientX-rect.left)*sx,ty=(e.clientY-rect.top)*sy;
-  if(dist({x:tx,y:ty},PL)>PL.r*1.5){
-    let ang=Math.atan2(ty-PL.y,tx-PL.x);
-    for(let i=0;i<PL.multi;i++){
-      let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.15;
-      let a=ang+spread,bullet={
-        x:PL.x,y:PL.y-10,vx:Math.cos(a)*8,vy:Math.sin(a)*8,
-        dmg:PL.atk*PL.dmgBonus*(Math.random()<PL.critChance?2.5:1),
-        pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
-        poison:PL.poisonDot,freeze:PL.freezeChance,
-        crit:Math.random()<PL.critChance,cx:PL.x,cy:PL.y-10
-      };
-      bullets.push(bullet);
-    }
-    attackTimer=0;
-  }
 });
 
 R('restart-btn').addEventListener('click',()=>{
