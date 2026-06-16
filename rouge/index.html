@@ -28,6 +28,41 @@ canvas{display:block;width:100%;height:100%}
   display:flex;align-items:center;gap:4px;
 }
 .hud-item .icon{font-size:15px}
+#hero-select{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:linear-gradient(180deg,#0d0d2b,#1a1a3e);
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  z-index:100;pointer-events:auto;
+}
+#hero-select h2{
+  color:#ffd700;font-size:24px;font-weight:900;margin-bottom:4px;
+  text-shadow:0 0 20px rgba(255,215,0,.5);
+}
+#hero-sub{color:#aaa;font-size:13px;margin-bottom:20px}
+#hero-cards{
+  display:flex;flex-direction:column;gap:12px;width:88%;max-width:360px;
+}
+.hero-card{
+  background:linear-gradient(135deg,#1a1a3e,#0d0d2b);
+  border:2px solid #2a2a5e;border-radius:16px;padding:16px;
+  cursor:pointer;transition:.2s;
+  display:flex;align-items:center;gap:14px;
+}
+.hero-card:hover,.hero-card:active{
+  transform:scale(1.03);
+}
+.hero-card.archer{border-color:#4ade80}
+.hero-card.archer:hover,.hero-card.archer:active{border-color:#22c55e;background:linear-gradient(135deg,#1a2e1e,#0d2b1a)}
+.hero-card.mage{border-color:#60a5fa}
+.hero-card.mage:hover,.hero-card.mage:active{border-color:#3b82f6;background:linear-gradient(135deg,#1a1a3e,#0d1a2b)}
+.hero-card.berserker{border-color:#f87171}
+.hero-card.berserker:hover,.hero-card.berserker:active{border-color:#ef4444;background:linear-gradient(135deg,#2e1a1a,#2b0d0d)}
+.hero-icon{font-size:48px;flex-shrink:0}
+.hero-info h3{color:#fff;font-size:16px;margin-bottom:3px}
+.hero-info .hero-class{color:#ffd700;font-size:11px;margin-bottom:4px}
+.hero-info .hero-stats{color:#aaa;font-size:11px;line-height:1.5}
+.hero-info .hero-unique{color:#fbbf24;font-size:11px;font-weight:700;margin-top:3px}
+.hero-info .hero-unique span{color:#fbbf24}
 #skill-panel{
   position:absolute;top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,.8);display:none;flex-direction:column;
@@ -55,6 +90,10 @@ canvas{display:block;width:100%;height:100%}
 .skill-info h4{color:#fff;font-size:14px;margin-bottom:2px}
 .skill-info p{color:#aaa;font-size:11px;line-height:1.4}
 .skill-lv{color:#ffd700;font-size:11px;margin-left:6px}
+.skill-unique-tag{
+  background:rgba(255,215,0,.15);color:#fbbf24;font-size:10px;
+  padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:700;
+}
 #game-over{
   position:absolute;top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,.85);display:none;flex-direction:column;
@@ -78,11 +117,18 @@ canvas{display:block;width:100%;height:100%}
   <canvas id="c"></canvas>
   <div id="ui">
     <div id="hud">
+      <div class="hud-item"><span class="icon" id="hero-hud-icon">🧝</span><span id="hero-hud-name">射手</span></div>
       <div class="hud-item"><span class="icon">❤️</span><span id="hp-txt">100</span></div>
       <div class="hud-item"><span class="icon">🌊</span><span id="wave-txt">1</span></div>
       <div class="hud-item"><span class="icon">💰</span><span id="gold-txt">0</span></div>
       <div class="hud-item"><span class="icon">💀</span><span id="kill-txt">0</span></div>
-      <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.3.1</span></div>
+      <div class="hud-item"><span class="icon" id="elem-icon">⭐</span><span id="elem-txt">无</span></div>
+      <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.5.0</span></div>
+    </div>
+    <div id="hero-select">
+      <h2>⚔️ 选择英雄</h2>
+      <div id="hero-sub">选择你的英雄开始冒险</div>
+      <div id="hero-cards"></div>
     </div>
     <div id="skill-panel">
       <div id="skill-title">🔮 选择升级</div>
@@ -92,6 +138,7 @@ canvas{display:block;width:100%;height:100%}
     <div id="game-over">
       <h2>💀 游戏结束</h2>
       <div class="stats">
+        <div>英雄: <span class="stat-v" id="end-hero">射手</span></div>
         <div>生存波次: <span class="stat-v" id="end-wave">1</span></div>
         <div>击败敌人: <span class="stat-v" id="end-kill">0</span></div>
         <div>获得金币: <span class="stat-v" id="end-gold">0</span></div>
@@ -117,65 +164,139 @@ let G,PL,monsters,bullets,particles,golds,dmgNums,pets;
 let spawnTimer,attackTimer,gameLoop,skillGoldBase,nextSkillGold;
 let skillPanelShown=false,paused=false;
 let waveAnnounce=null,screenFlash=0,screenShake=0;
-const VERSION='v1.3.1';
+let heroClass=null;
+const VERSION='v1.5.0';
 
-// Enemy types: each has distinct profile
-// slime=tanky slow, bat=fast fragile, goblin=balanced, skeleton=slow heavy hitter, mage=ranged
+// ========== HERO CLASSES ==========
+const HEROES={
+  archer:{
+    key:'archer',emoji:'🧝',name:'射手',
+    cls:'archer',
+    desc:'远程攻击专家，高攻速高伤害',
+    hp:90,maxHp:90,atk:16,atkSpeed:1.2,spdMult:1,
+    passive:'+30% 攻击力基础加成',
+    uniqueSkill:'powerShot',
+    uniqueName:'精准射击',
+    uniqueDesc:'攻击力 +{n}%（射手专精）',
+    statTags:['攻击 ★★★★','攻速 ★★★☆','血量 ★★☆☆']
+  },
+  mage:{
+    key:'mage',emoji:'🧙‍♂️',name:'法师',
+    cls:'mage',
+    desc:'掌控元素之力，冻结敌人',
+    hp:80,maxHp:80,atk:14,atkSpeed:.9,spdMult:1,
+    passive:'子弹自带 10% 冰冻几率',
+    passiveFreeze:.1,
+    uniqueSkill:'iceNova',
+    uniqueName:'冰霜新星',
+    uniqueDesc:'冰冻几率 +{n}%（法师专精）',
+    statTags:['冰控 ★★★★★','攻击 ★★★☆','血量 ★★☆☆']
+  },
+  berserker:{
+    key:'berserker',emoji:'👹',name:'狂战士',
+    cls:'berserker',
+    desc:'暴怒之力，追求极致暴击',
+    hp:130,maxHp:130,atk:14,atkSpeed:.8,spdMult:1.15,
+    passive:'+15% 基础暴击率',
+    passiveCrit:.15,
+    uniqueSkill:'rageBlow',
+    uniqueName:'嗜血狂暴',
+    uniqueDesc:'暴击率 +{n}%，暴击伤害 +{n2}%',
+    statTags:['暴击 ★★★★★','血量 ★★★★☆','攻速 ★★☆☆']
+  }
+};
+
+// ========== ELEMENT SYSTEM ==========
+const ELEMENTS={
+  fire:{emoji:'🔥',name:'火',color:'#ef4444',bulletColor:'#ff6b35'},
+  ice:{emoji:'❄️',name:'冰',color:'#60a5fa',bulletColor:'#93c5fd'},
+  lightning:{emoji:'⚡',name:'雷',color:'#facc15',bulletColor:'#fde047'},
+  nature:{emoji:'🌿',name:'木',color:'#4ade80',bulletColor:'#86efac'}
+};
+const ELEM_ORDER=['fire','ice','lightning','nature'];
+const COUNTER={fire:'nature',nature:'lightning',lightning:'ice',ice:'fire'};
+
+function getElementBonus(atkElem,defElem){
+  if(!atkElem||!defElem)return 1;
+  if(COUNTER[atkElem]===defElem)return 1.5;
+  if(COUNTER[defElem]===atkElem)return 0.7;
+  return 1;
+}
+
+// ========== ENEMY TYPES ==========
 const MONSTERS={
-  slime:{emoji:"🟢",name:"史莱姆",hp:40,atk:4,spd:.5,s:20,gold:12,c:"#4ade80",trait:"tank"},
-  bat:{emoji:"🦇",name:"蝙蝠",hp:18,atk:7,spd:1.6,s:14,gold:14,c:"#a78bfa",trait:"fast"},
-  goblin:{emoji:"👹",name:"哥布林",hp:35,atk:10,spd:.9,s:18,gold:20,c:"#f87171",trait:"balanced"},
-  skeleton:{emoji:"💀",name:"骷髅兵",hp:60,atk:18,spd:.45,s:22,gold:28,c:"#d4d4d8",trait:"heavy"},
-  mage:{emoji:"🧙",name:"暗法师",hp:30,atk:22,spd:.35,s:18,gold:35,c:"#e879f9",range:180,trait:"ranged"}
+  slime:{emoji:"🟢",name:"史莱姆",hp:40,atk:4,spd:.5,s:20,gold:12,c:"#4ade80",element:"nature",shootRange:0,shootCD:99,projEmoji:"",projSpd:0},
+  bat:{emoji:"🦇",name:"蝙蝠",hp:18,atk:7,spd:1.6,s:14,gold:14,c:"#a78bfa",element:"lightning",shootRange:200,shootCD:1.8,projEmoji:"💨",projSpd:3},
+  goblin:{emoji:"👹",name:"哥布林",hp:35,atk:10,spd:.9,s:18,gold:20,c:"#f87171",element:"fire",shootRange:220,shootCD:2,projEmoji:"🗡️",projSpd:2.5},
+  skeleton:{emoji:"💀",name:"骷髅兵",hp:60,atk:18,spd:.45,s:22,gold:28,c:"#d4d4d8",element:"ice",shootRange:250,shootCD:2.5,projEmoji:"🦴",projSpd:2},
+  mage:{emoji:"🧙",name:"暗法师",hp:30,atk:22,spd:.35,s:18,gold:35,c:"#e879f9",element:"lightning",range:180,shootRange:280,shootCD:1.5,projEmoji:"🔮",projSpd:2.5}
 };
 
 const BOSS_TYPES=[
-  {key:'wolf',emoji:'🐺',name:'狼王',hp:150,atk:12,spd:.8,s:26,gold:50,c:'#94a3b8',minWave:1,demoteWave:4,trait:'boss'},
-  {key:'orc',emoji:'🧌',name:'兽人',hp:300,atk:22,spd:.6,s:28,gold:70,c:'#f97316',minWave:4,demoteWave:8,trait:'boss'},
-  {key:'dragon',emoji:'🐉',name:'暗龙',hp:600,atk:35,spd:.5,s:32,gold:120,c:'#6366f1',minWave:8,demoteWave:13,range:200,trait:'boss'},
-  {key:'demon',emoji:'👑',name:'魔王',hp:1200,atk:50,spd:.4,s:38,gold:250,c:'#dc2626',minWave:13,demoteWave:999,trait:'boss'}
+  {key:'wolf',emoji:'🐺',name:'狼王',hp:150,atk:12,spd:1.2,s:26,gold:60,c:'#94a3b8',minWave:1,demoteWave:5,element:'lightning',
+   ability:'speed',abilityName:'疾风',shootRange:250,shootCD:1.2,projEmoji:'⚡',projSpd:3},
+  {key:'orc',emoji:'🧌',name:'兽人',hp:300,atk:28,spd:.6,s:28,gold:80,c:'#f97316',minWave:5,demoteWave:10,element:'fire',
+   ability:'power',abilityName:'狂暴',shootRange:260,shootCD:1.8,projEmoji:'🪓',projSpd:2.5},
+  {key:'dragon',emoji:'🐉',name:'暗龙',hp:500,atk:30,spd:.5,s:32,gold:130,c:'#6366f1',minWave:10,demoteWave:16,element:'fire',
+   ability:'fireAura',abilityName:'烈焰',range:200,shootRange:300,shootCD:1.2,projEmoji:'🔥',projSpd:2.5},
+  {key:'demon',emoji:'👑',name:'魔王',hp:1000,atk:40,spd:.4,s:38,gold:260,c:'#dc2626',minWave:16,demoteWave:999,element:'ice',
+   ability:'freeze',abilityName:'寒冰',shootRange:350,shootCD:1,projEmoji:'💀',projSpd:3}
 ];
 
+// ========== SKILLS ==========
 const SKILLS={
   multishot:{name:"多重射击",emoji:"🎯",desc:"同时发射 {n} 发子弹",maxLv:4,base:1,apply(p){p.multi+=1}},
   atkspd:{name:"急速攻击",emoji:"⚡",desc:"攻击速度 +{n}%",maxLv:5,base:1,apply(p){p.atkSpdBonus+=.2}},
   damage:{name:"力量强化",emoji:"💪",desc:"攻击力 +{n}%",maxLv:5,base:1,apply(p){p.dmgBonus+=.25}},
   pierce:{name:"穿透箭",emoji:"🏹",desc:"子弹穿透 +{n} 个敌人",maxLv:3,base:1,apply(p){p.pierce+=1}},
   explosive:{name:"爆炸弹",emoji:"💥",desc:"子弹命中时爆炸，范围 {n}",maxLv:4,base:0,apply(p){p.explosive=(p.explosive||0)+1}},
-  crit:{name:"致命一击",emoji:"🗡️",desc:"暴击率 +{n}%",maxLv:5,base:1,apply(p){p.critChance+=.12},format:'pct'},
-  knockback:{name:"击退之力",emoji:"🛡️",desc:"击退敌人 {n} 格",maxLv:4,base:0,apply(p){p.knockback=(p.knockback||0)+15}},
+  crit:{name:"致命一击",emoji:"🗡️",desc:"暴击率 +{n}%",maxLv:5,base:1,apply(p){p.critChance+=.12}},
+  knockback:{name:"击退之力",emoji:"🛡️",desc:"击退敌人 {n} 格",maxLv:4,base:0,apply(p){p.knockback=(p.knockback||0)+5}},
   summon:{name:"召唤宝宝",emoji:"🐾",desc:"召唤 {n} 只战斗宝宝",maxLv:4,base:0,apply(p){p.summonCount=(p.summonCount||0)+1}},
-  freeze:{name:"冰霜弹",emoji:"❄️",desc:"{n}% 几率减速敌人",maxLv:4,base:1,apply(p){p.freezeChance+=.18},format:'pct'},
+  freeze:{name:"冰霜弹",emoji:"❄️",desc:"{n}% 几率减速敌人",maxLv:4,base:1,apply(p){p.freezeChance+=.18}},
   poison:{name:"剧毒",emoji:"☠️",desc:"击中附加 {n} 秒中毒",maxLv:4,base:0,apply(p){p.poisonDot=(p.poisonDot||0)+1.5}},
-  heal:{name:"生命汲取",emoji:"🩸",desc:"击杀回复 {n}% HP",maxLv:4,base:0,apply(p){p.vampire=(p.vampire||0)+.05},format:'pct'},
-  chain:{name:"连锁闪电",emoji:"⚡",desc:"{n}% 几率连锁2个敌人",maxLv:4,base:0,apply(p){p.chainChance=(p.chainChance||0)+.2},format:'pct'},
-  maxHp:{name:"生命上限",emoji:"❤️",desc:"最大生命 +{n}%",maxLv:5,base:1,apply(p){p.maxHpBonus+=.3},format:'pct'},
-  movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25},format:'pct'},
-  gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35},format:'pct'},
-  regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01},format:'pct'},
-  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4},format:'pct'},
-}
+  heal:{name:"生命汲取",emoji:"🩸",desc:"击杀回复 {n}% HP",maxLv:4,base:0,apply(p){p.vampire=(p.vampire||0)+.05}},
+  chain:{name:"连锁闪电",emoji:"⚡",desc:"{n}% 几率连锁2个敌人",maxLv:4,base:0,apply(p){p.chainChance=(p.chainChance||0)+.2}},
+  maxHp:{name:"生命上限",emoji:"❤️",desc:"最大生命 +{n}%",maxLv:5,base:1,apply(p){p.maxHpBonus+=.3}},
+  movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25}},
+  gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35}},
+  regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01}},
+  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4}},
+  elemPower:{name:"元素强化",emoji:"🌟",desc:"元素克制伤害 +{n}%",maxLv:5,base:1,apply(p){p.elemPowerBonus+=.15}},
+  // Hero unique skills
+  powerShot:{name:"精准射击",emoji:"🏹",desc:"攻击力 +{n}%",maxLv:5,base:1,apply(p){p.dmgBonus+=.35},unique:true,hero:'archer'},
+  iceNova:{name:"冰霜新星",emoji:"❄️",desc:"冰冻几率 +{n}%",maxLv:5,base:1,apply(p){p.freezeChance+=.22},unique:true,hero:'mage'},
+  rageBlow:{name:"嗜血狂暴",emoji:"⚔️",desc:"暴击率 +{n}%，暴击伤害 +{n2}%",maxLv:5,base:1,apply(p){p.critChance+=.1;p.critDmg=(p.critDmg||3)+.3},unique:true,hero:'berserker'}
+};
 
 function getSkillLevel(p,key){return p.skills[key]||0}
 
-function initPlayer(){
+function initPlayer(hero){
+  let h=HEROES[hero];
   return{
-    x:W/2,y:H-120,r:20,hp:100,maxHp:100,atk:12,atkSpeed:1,atkRange:900,
-    multi:1,pierce:0,explosive:0,critChance:0,dmgBonus:1,atkSpdBonus:1,
-    magnetRange:1,poisonDot:0,freezeChance:0,vampire:0,chainChance:0,
-    maxHpBonus:1,spdBonus:1,goldBonus:1,regen:0,gold:0,
-    knockback:0,summonCount:0,
-    skills:{},dragX:null
+    x:W/2,y:H-120,r:20,
+    hp:h.hp,maxHp:h.maxHp,atk:h.atk,atkSpeed:h.atkSpeed,atkRange:900,
+    multi:1,pierce:0,explosive:0,critChance:h.passiveCrit||0,critDmg:h.passiveCrit?3:2.5,
+    dmgBonus:1,atkSpdBonus:1,
+    magnetRange:1,poisonDot:0,freezeChance:h.passiveFreeze||0,vampire:0,chainChance:0,
+    maxHpBonus:1,spdBonus:h.spdMult,goldBonus:1,regen:0,gold:0,
+    knockback:0,summonCount:0,elemPowerBonus:0,
+    element:null,
+    skills:{},dragX:null,
+    hero:hero,heroEmoji:h.emoji,heroName:h.name,
+    _freezeDebuff:0
   }
 }
 
 function initGame(){
-  PL=initPlayer();monsters=[];bullets=[];particles=[];golds=[];
+  PL=initPlayer(heroClass);monsters=[];bullets=[];particles=[];golds=[];
   dmgNums=[];pets=[];
-  G={wave:1,kills:0,score:0,time:0,totalGold:0,waveSpawned:0,bossSpawned:false};
+  G={wave:1,kills:0,score:0,time:0,totalGold:0,waveSpawned:0,bossSpawned:false,bossCount:0};
   spawnTimer=0;attackTimer=0;skillGoldBase=30;nextSkillGold=skillGoldBase;
   skillPanelShown=false;paused=false;waveAnnounce={text:'第1波',timer:90};
+  screenFlash=0;screenShake=0;
   R('skill-panel').style.display='none';R('game-over').style.display='none';
+  R('hero-select').style.display='none';
   updateHUD();
 }
 
@@ -184,8 +305,53 @@ function updateHUD(){
   R('wave-txt').textContent=G.wave;
   R('gold-txt').textContent=PL.gold;
   R('kill-txt').textContent=G.kills;
+  R('hero-hud-icon').textContent=PL.heroEmoji;
+  R('hero-hud-name').textContent=PL.heroName;
+  if(PL.element){
+    let el=ELEMENTS[PL.element];
+    R('elem-icon').textContent=el.emoji;
+    R('elem-txt').textContent=el.name;
+  }else{
+    R('elem-icon').textContent='⭐';
+    R('elem-txt').textContent='无';
+  }
 }
 
+// ========== HERO SELECTION ==========
+function showHeroSelect(){
+  let container=R('hero-cards');
+  container.innerHTML='';
+  for(let key of ['archer','mage','berserker']){
+    let h=HEROES[key];
+    let div=document.createElement('div');
+    div.className='hero-card '+h.cls;
+    div.innerHTML=`
+      <div class="hero-icon">${h.emoji}</div>
+      <div class="hero-info">
+        <h3>${h.name}</h3>
+        <div class="hero-class">${h.desc}</div>
+        <div class="hero-stats">
+          ${h.statTags.map(t=>'<div>'+t+'</div>').join('')}
+        </div>
+        <div class="hero-unique">
+          <span>专精:</span> ${h.uniqueEmoji||'💡'} ${h.uniqueName} · ${h.passive}
+        </div>
+      </div>`;
+    div.onclick=()=>{
+      heroClass=key;
+      startGame();
+    };
+    container.appendChild(div);
+  }
+}
+
+function startGame(){
+  initGame();
+  lastTs=0;
+  gameLoop=requestAnimationFrame(gameFrame);
+}
+
+// ========== GAME LOGIC ==========
 function getWaveMonsterCount(){return 4+Math.floor(G.wave*1.2)}
 function getSpawnInterval(){return Math.max(300,1600-G.wave*60)}
 
@@ -203,13 +369,18 @@ function getMonsterTier(){
   return'skeleton';
 }
 
-// Enemy gains skills based on wave
 function getEnemySkills(wave){
   let es={slowAura:false,knockback:false,poison:false};
   if(wave>=4&&Math.random()<.15)es.slowAura=true;
   if(wave>=6&&Math.random()<.12)es.knockback=true;
   if(wave>=9&&Math.random()<.1)es.poison=true;
   return es;
+}
+
+function getBossColorVariant(baseColor,wave){
+  let variants=['#ff6b6b','#f472b6','#c084fc','#818cf8','#38bdf8','#34d399'];
+  let cycle=Math.floor((wave-1)/4);
+  return variants[cycle%variants.length];
 }
 
 function spawnRegularMonster(){
@@ -228,15 +399,20 @@ function spawnRegularMonster(){
   let gold=Math.round(base.gold*s);
   let spd=base.spd*Math.min(1+G.wave*.04,2.5);
   let es=isBossTier?{slowAura:false,knockback:false,poison:false}:getEnemySkills(G.wave);
+  let elem=base.element||'fire';
   monsters.push({
     emoji:base.emoji,name:base.name,
     hp:hp,maxHp:hp,atk:atk,spd:spd,
     gold:gold,s:base.s,
     x:mx,y:my,boss:false,r:base.s,
-    c:base.c,range:base.range||0,
+    c:base.c,element:elem,
+    range:base.range||0,
+    shootRange:base.shootRange||0,shootCD:base.shootCD||99,
+    projEmoji:base.projEmoji||"",projSpd:base.projSpd||0,
     poisonTimer:0,freezeTimer:0,hitFlash:0,
     wobble:rand(0,PI*2),
-    slowAura:es.slowAura,knockback:es.knockback,poisonSpit:es.poison
+    slowAura:es.slowAura,knockback:es.knockback,poisonSpit:es.poison,
+    ability:null,_shootTimer:rand(0,1)
   });
 }
 
@@ -247,18 +423,52 @@ function spawnWaveBoss(){
   let hp=Math.round(bossDef.hp*s*2.5);
   let atk=Math.round(bossDef.atk*s*1.8);
   let gold=Math.round(bossDef.gold*s*1.5);
+  let colorVariant=getBossColorVariant(bossDef.c,G.wave);
+  let nameSuffix=G.wave>=bossDef.demoteWave?'·强化':'';
+  let elem=bossDef.element||'fire';
+
   monsters.push({
-    emoji:bossDef.emoji,name:bossDef.name,
+    emoji:bossDef.emoji,name:bossDef.name+nameSuffix,
     hp:hp,maxHp:hp,atk:atk,spd:bossDef.spd,
     gold:gold,s:bossDef.s,
     x:W/2,y:-50,r:bossDef.s,
-    c:bossDef.c,boss:true,
+    c:colorVariant,boss:true,element:elem,
     range:bossDef.range||0,
+    shootRange:bossDef.shootRange||200,shootCD:bossDef.shootCD||2,
+    projEmoji:bossDef.projEmoji||"💀",projSpd:bossDef.projSpd||4,
     poisonTimer:0,freezeTimer:0,hitFlash:0,
     wobble:rand(0,PI*2),
-    slowAura:G.wave>=5,knockback:G.wave>=8,poisonSpit:G.wave>=10
+    slowAura:G.wave>=5,knockback:G.wave>=8,poisonSpit:G.wave>=10,
+    ability:bossDef.ability,_shootTimer:rand(0,1),
+    _fireAuraTimer:0,_freezeTimer:0
   });
-  waveAnnounce={text:'⚠️ BOSS来袭',timer:100};
+
+  G.bossCount=1;
+  if(G.wave>=10&&G.wave%5===0){
+    let secondBoss=available.length>1?available[available.length-2]:available[0];
+    let s2=1+G.wave*.15;
+    let hp2=Math.round(secondBoss.hp*s2*2);
+    let atk2=Math.round(secondBoss.atk*s2*1.5);
+    let gold2=Math.round(secondBoss.gold*s2*1.2);
+    let c2=getBossColorVariant(secondBoss.c,G.wave+3);
+    monsters.push({
+      emoji:secondBoss.emoji,name:secondBoss.name+'·强化',
+      hp:hp2,maxHp:hp2,atk:atk2,spd:secondBoss.spd*1.2,
+      gold:gold2,s:secondBoss.s,
+      x:W/4,y:-50,r:secondBoss.s,
+      c:c2,boss:true,element:secondBoss.element||'fire',
+      range:secondBoss.range||0,
+      shootRange:secondBoss.shootRange||200,shootCD:secondBoss.shootCD||2,
+      projEmoji:secondBoss.projEmoji||"💀",projSpd:secondBoss.projSpd||4,
+      poisonTimer:0,freezeTimer:0,hitFlash:0,
+      wobble:rand(0,PI*2),
+      slowAura:true,knockback:G.wave>=8,poisonSpit:false,
+      ability:secondBoss.ability,_shootTimer:rand(0,1),
+      _fireAuraTimer:0,_freezeTimer:0
+    });
+    G.bossCount=2;
+  }
+  waveAnnounce={text:G.bossCount>1?'⚠️ 双BOSS来袭':'⚠️ BOSS来袭',timer:100};
 }
 
 // ---- PETS ----
@@ -283,11 +493,9 @@ function updatePets(dt){
     let p=pets[i];
     p.life-=dt;
     if(p.life<=0){spawnParticles(p.x,p.y,6,'#60a5fa');pets.splice(i,1);continue}
-    // Follow player loosely
     let dx=PL.x-p.x,dy=PL.y-p.y,d=Math.hypot(dx,dy);
     if(d>50){p.x+=dx/d*p.spd;p.y+=dy/d*p.spd}
     else if(d>20){p.x+=dx/d*p.spd*.3;p.y+=dy/d*p.spd*.3}
-    // Auto attack nearest monster
     p.shootTimer+=dt;
     if(p.shootTimer>=p.shootInterval){
       let nearest=null,minD=300;
@@ -304,13 +512,15 @@ function updatePets(dt){
           vx:Math.cos(ang)*6,vy:Math.sin(ang)*6,
           dmg:p.atk,pierce:0,hit:new Set(),explosive:0,
           poison:0,freeze:0,crit:false,
-          isPet:true,cx:p.x,cy:p.y-6
+          isPet:true,elem:null,
+          cx:p.x,cy:p.y-6,
+          trail:[]
         });
         spawnParticles(p.x,p.y,2,'#60a5fa');
       }
     }
-    // Check if monster touches pet
-    for(let m of monsters){
+    for(let j=monsters.length-1;j>=0;j--){
+      let m=monsters[j];
       if(m.projectile)continue;
       if(dist(p,m)<p.s+m.s){
         p.hp-=m.atk*dt;
@@ -330,23 +540,25 @@ function findNearestMonster(){
   return best;
 }
 
-// ---- SHOOTING (bullet projectiles, not laser) ----
-function shoot(target){
-  let ang=Math.atan2(target.y-PL.y,target.x-PL.x);
+// ---- SHOOTING ----
+function shoot(){
+  let ang=-PI/2;
   let crit=Math.random()<PL.critChance;
+  let bulletColor=PL.element?ELEMENTS[PL.element].bulletColor:'#ffdd57';
   for(let i=0;i<PL.multi;i++){
     let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.12;
     let a=ang+spread;
     let isCrit=crit&&i===0;
+    let critMult=isCrit?(PL.critDmg||2.5):1;
     bullets.push({
       x:PL.x,y:PL.y-10,
       vx:Math.cos(a)*10,vy:Math.sin(a)*10,
-      dmg:PL.atk*PL.dmgBonus*(isCrit?3:1),
+      dmg:PL.atk*PL.dmgBonus*critMult,
       pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
       poison:PL.poisonDot,freeze:PL.freezeChance,
-      crit:isCrit,isPet:false,
+      crit:isCrit,isPet:false,elem:PL.element,
       cx:PL.x,cy:PL.y-10,
-      trail:[]
+      trail:[],bulletColor:bulletColor
     });
   }
 }
@@ -354,11 +566,24 @@ function shoot(target){
 function hitMonster(bullet,monster,idx){
   if(bullet.hit.has(idx))return false;
   bullet.hit.add(idx);
-  let dmg=Math.round(bullet.dmg);
+
+  let elemMult=1;
+  if(bullet.elem&&!bullet.isPet){
+    let base=getElementBonus(bullet.elem,monster.element);
+    elemMult=1+(base-1)*(1+PL.elemPowerBonus);
+  }
+  let dmg=Math.round(bullet.dmg*elemMult);
   monster.hp-=dmg;monster.hitFlash=8;
   spawnDamageNum(monster.x,monster.y,dmg,bullet.crit);
 
-  // Crit effects
+  if(elemMult>1.15){
+    let el=ELEMENTS[bullet.elem];
+    dmgNums.push({x:monster.x+rand(-15,15),y:monster.y-40,v:'克制!'+el.emoji,crit:false,life:0,elemText:true});
+    spawnParticles(monster.x,monster.y,3,el.color);
+  }else if(elemMult<.85){
+    dmgNums.push({x:monster.x+rand(-15,15),y:monster.y-40,v:'抵抗',crit:false,life:0,elemText:true});
+  }
+
   if(bullet.crit){
     screenFlash=5;screenShake=4;
     for(let i=0;i<12;i++){
@@ -369,10 +594,9 @@ function hitMonster(bullet,monster,idx){
     dmgNums.push({x:monster.x+rand(-5,5),y:monster.y-30,v:'暴击!',crit:true,life:0});
     spawnParticles(monster.x,monster.y,6,'#ffd700');
   }else{
-    spawnParticles(monster.x,monster.y,4,'#ff6b6b');
+    spawnParticles(monster.x,monster.y,4,monster.element?ELEMENTS[monster.element].color:'#ff6b6b');
   }
 
-  // Knockback
   if(PL.knockback>0&&!bullet.isPet){
     let kbAng=Math.atan2(monster.y-PL.y,monster.x-PL.x);
     monster.x+=Math.cos(kbAng)*PL.knockback;
@@ -381,11 +605,9 @@ function hitMonster(bullet,monster,idx){
     monster.y=clamp(monster.y,-H*.1,H);
   }
 
-  // Poison
   if(bullet.poison>0){monster.poisonTimer=Math.max(monster.poisonTimer||0,bullet.poison*60)}
-  // Freeze
   if(Math.random()<bullet.freeze)monster.freezeTimer=90;
-  // Explosive
+
   if(bullet.explosive>0){
     for(let i=monsters.length-1;i>=0;i--){
       let m=monsters[i];if(m===monster)continue;
@@ -393,7 +615,7 @@ function hitMonster(bullet,monster,idx){
     }
     spawnParticles(monster.x,monster.y,8,'#fbbf24');
   }
-  // Chain
+
   if(Math.random()<PL.chainChance){
     let candidates=monsters.filter((m,i)=>{if(!bullet.hit.has(i)&&m!==monster)return dist(monster,m)<150;return false});
     if(candidates.length>0){
@@ -454,39 +676,107 @@ function checkSkillPanel(){
 }
 
 function getRandomSkills(n=3){
-  let pool=Object.keys(SKILLS).filter(k=>getSkillLevel(PL,k)<SKILLS[k].maxLv);
+  let pool=Object.keys(SKILLS).filter(k=>{
+    if(getSkillLevel(PL,k)>=SKILLS[k].maxLv)return false;
+    if(SKILLS[k].unique&&SKILLS[k].hero!==PL.hero)return false;
+    return true;
+  });
+  if(pool.length===0)pool=Object.keys(SKILLS).filter(k=>!SKILLS[k].unique);
   if(pool.length===0)pool=Object.keys(SKILLS);
   let result=[];
-  for(let i=0;i<Math.min(n,pool.length);i++){
-    let idx=randi(0,pool.length-1);
-    result.push(pool.splice(idx,1)[0]);
+
+  // Always try to include hero unique skill if not maxed
+  let heroUniqueKey=null;
+  for(let k of Object.keys(SKILLS)){
+    if(SKILLS[k].unique&&SKILLS[k].hero===PL.hero&&getSkillLevel(PL,k)<SKILLS[k].maxLv){
+      heroUniqueKey=k;break;
+    }
   }
-  return result;
+  if(heroUniqueKey&&!result.includes(heroUniqueKey)&&Math.random()<.6){
+    result.push(heroUniqueKey);
+  }
+
+  // If no element, force element choice on first level
+  if(!PL.element){
+    return result.length>=n?result.slice(0,n):result;
+  }
+
+  let remaining=n-result.length;
+  for(let i=0;i<remaining;i++){
+    let filtered=pool.filter(k=>!result.includes(k));
+    if(filtered.length===0)break;
+    let idx=randi(0,filtered.length-1);
+    result.push(filtered[idx]);
+  }
+  return result.slice(0,n);
 }
 
 function calcSkillDesc(key,lv){
   let s=SKILLS[key];
   if(key==='explosive')return Math.round(lv*1.2);
   if(key==='poison')return Math.round(lv*1.5);
-  if(key==='vampire'||key==='regen')return Math.round(lv*1)+'%';
+  if(key==='vampire'||key==='regen')return Math.round(lv*100)+'%';
   if(key==='chain'||key==='freeze')return Math.round(lv*18)+'%';
   if(key==='crit')return Math.round(lv*12)+'%';
-  if(key==='knockback')return lv*15;
+  if(key==='knockback')return lv*5;
   if(key==='summon')return lv;
+  if(key==='elemPower')return Math.round(lv*15)+'%';
+  if(key==='powerShot')return Math.round(lv*35)+'%';
+  if(key==='iceNova')return Math.round(lv*22)+'%';
+  if(key==='rageBlow')return Math.round(lv*10)+'% / '+Math.round(lv*30)+'%';
   return s.base+lv;
 }
 
 function showSkillPanel(){
   let panel=R('skill-panel'),cards=R('skill-cards');
   panel.style.display='flex';cards.innerHTML='';
+
+  // Element selection
+  if(!PL.element){
+    R('skill-title').textContent='🌟 选择主属性';
+    R('skill-sub').textContent='选择一个元素属性作为你的主属性（只能存在一个）';
+    let info=document.createElement('div');
+    info.style.cssText='color:#888;font-size:11px;margin-bottom:12px;text-align:center;line-height:1.6';
+    info.innerHTML='🔥火 克 🌿木 克 ⚡雷 克 ❄️冰 克 🔥火<br>克制对方 +50% 伤害，被克制 -30% 伤害';
+    cards.appendChild(info);
+
+    let elems=[...ELEM_ORDER].sort(()=>Math.random()-.5);
+    for(let ek of elems){
+      let el=ELEMENTS[ek];
+      let counterTo=ELEMENTS[COUNTER[ek]];
+      let weakTo=Object.entries(COUNTER).find(([k,v])=>v===ek);
+      let div=document.createElement('div');
+      div.className='skill-card';
+      div.style.borderColor=el.color;
+      div.innerHTML=`<div class="skill-icon">${el.emoji}</div><div class="skill-info"><h4 style="color:${el.color}">${el.name}属性</h4><p>克制 ${counterTo.emoji}${counterTo.name} · 被 ${ELEMENTS[weakTo[0]].emoji}${ELEMENTS[weakTo[0]].name} 克制<br>子弹变为${el.name}属性颜色</p></div>`;
+      div.onclick=()=>{
+        PL.element=ek;
+        PL.elemPowerBonus=0.15;
+        R('skill-panel').style.display='none';
+        skillPanelShown=false;paused=false;
+        updateHUD();
+      };
+      cards.appendChild(div);
+    }
+    return;
+  }
+
+  R('skill-title').textContent='🔮 选择升级';
+  R('skill-sub').textContent=`${PL.heroEmoji} ${PL.heroName} · 选择一个技能提升实力`;
   let skills=getRandomSkills(3);
   for(let key of skills){
     let s=SKILLS[key],lv=getSkillLevel(PL,key)+1;
     let descStr=calcSkillDesc(key,lv);
-    let desc=s.desc.replace('{n}',descStr);
+    let desc;
+    if(key==='rageBlow'){
+      desc=s.desc.replace('{n}',descStr.split(' / ')[0]).replace('{n2}',descStr.split(' / ')[1]);
+    }else{
+      desc=s.desc.replace('{n}',descStr);
+    }
     let div=document.createElement('div');
     div.className='skill-card';
-    div.innerHTML=`<div class="skill-icon">${s.emoji}</div><div class="skill-info"><h4>${s.name}<span class="skill-lv">Lv.${lv}/${s.maxLv}</span></h4><p>${desc}</p></div>`;
+    let uniqueTag=s.unique?'<span class="skill-unique-tag">专精</span>':'';
+    div.innerHTML=`<div class="skill-icon">${s.emoji}</div><div class="skill-info"><h4>${s.name}${uniqueTag}<span class="skill-lv">Lv.${lv}/${s.maxLv}</span></h4><p>${desc}</p></div>`;
     div.onclick=()=>pickSkill(key);
     cards.appendChild(div);
   }
@@ -501,14 +791,16 @@ function pickSkill(key){
   R('skill-panel').style.display='none';
   skillPanelShown=false;paused=false;
   if(PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+20);
-  // Summon pets immediately if picking summon skill
   if(key==='summon')spawnPets(PL.summonCount);
+  // Update maxHp after bonus changes
+  PL.maxHp=Math.round(HEROES[PL.hero].maxHp*PL.maxHpBonus);
   updateHUD();
 }
 
 function gameOver(){
   paused=true;skillPanelShown=true;
   R('game-over').style.display='flex';
+  R('end-hero').textContent=PL.heroEmoji+' '+PL.heroName;
   R('end-wave').textContent=G.wave;R('end-kill').textContent=G.kills;R('end-gold').textContent=G.totalGold;
 }
 
@@ -519,12 +811,11 @@ function update(dt){
   // Regen
   if(PL.regen>0&&PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+PL.maxHp*PL.regen*dt);
 
-  // Auto attack - shoot bullets upward toward nearest
+  // Auto attack
   attackTimer+=dt;
   if(attackTimer>=1/(PL.atkSpeed*PL.atkSpdBonus)){
     attackTimer=0;
-    let target=findNearestMonster();
-    if(target)shoot(target);
+    if(monsters.some(m=>!m.projectile))shoot();
   }
 
   // Pets
@@ -542,12 +833,11 @@ function update(dt){
   }
 
   if(G.bossSpawned&&monsters.length===0&&spawnTimer>1.5){
-    G.wave++;G.waveSpawned=0;G.bossSpawned=false;spawnTimer=0;
+    G.wave++;G.waveSpawned=0;G.bossSpawned=false;G.bossCount=0;spawnTimer=0;
     waveAnnounce={text:'第'+G.wave+'波',timer:90};
     updateHUD();
   }
 
-  // Player slow debuff
   let playerSpdMult=1;
 
   // Update monsters
@@ -555,15 +845,21 @@ function update(dt){
     let m=monsters[i];
     if(m.projectile){
       m.x+=m.vx;m.y+=m.vy;m.life--;
-      for(let t=0;t<2;t++)particles.push({x:m.x+rand(-3,3),y:m.y+rand(-3,3),vx:rand(-.5,.5),vy:rand(-.5,.5),life:10,maxLife:10,color:m.c});
+      // Bigger and brighter trail
+      for(let t=0;t<3;t++)particles.push({x:m.x+rand(-4,4),y:m.y+rand(-4,4),vx:rand(-.8,.8),vy:rand(-.8,.8),life:15,maxLife:15,color:m.c});
+      // White core trail
+      particles.push({x:m.x,y:m.y,vx:0,vy:0,life:6,maxLife:6,color:'#fff'});
       if(m.life<=0||m.x<-30||m.x>W+30||m.y<-30||m.y>H+30){monsters.splice(i,1);continue}
       let pd=dist(m,PL);if(pd<PL.r+m.s){
-        PL.hp-=Math.round(m.atk);
-        spawnDamageNum(PL.x,PL.y-20,Math.round(m.atk),false);
+        let eMult=getElementBonus(m.element,PL.element);
+        let pdmg=Math.round(m.atk*eMult);
+        PL.hp-=pdmg;
+        spawnDamageNum(PL.x,PL.y-20,pdmg,false);
         spawnParticles(PL.x,PL.y,8,'#e879f9');
         screenFlash=8;screenShake=6;
         monsters.splice(i,1);continue
       }else continue}
+
     m.wobble+=dt*4;
     if(m.freezeTimer>0){m.freezeTimer-=1;continue}
     if(m.poisonTimer>0){
@@ -573,28 +869,82 @@ function update(dt){
     }
     if(m.hitFlash>0)m.hitFlash--;
 
-    // Enemy slow aura on player
+    // Boss abilities
+    if(m.boss){
+      if(m.ability==='speed'){m.spd=1.2+Math.sin(G.time*2)*.4}
+      if(m.ability==='fireAura'){
+        m._fireAuraTimer+=dt;
+        if(m._fireAuraTimer>.8){
+          m._fireAuraTimer=0;
+          if(dist(m,PL)<70){
+            PL.hp-=Math.round(m.atk*.3);
+            spawnParticles(PL.x,PL.y,5,'#ff6b35');
+            spawnDamageNum(PL.x,PL.y-20,Math.round(m.atk*.3),false);
+            screenFlash=Math.max(screenFlash,2);
+          }
+          for(let fi=0;fi<3;fi++){
+            let fa=rand(0,PI*2),fr=rand(20,40);
+            particles.push({x:m.x+Math.cos(fa)*fr,y:m.y+Math.sin(fa)*fr,vx:rand(-1,1),vy:rand(-2,0),life:20,maxLife:20,color:'#ff6b35'});
+          }
+        }
+      }
+      if(m.ability==='freeze'){
+        m._freezeTimer+=dt;
+        if(m._freezeTimer>4&&dist(m,PL)<100){
+          m._freezeTimer=0;
+          PL._freezeDebuff=3;
+          spawnParticles(PL.x,PL.y,10,'#93c5fd');
+          dmgNums.push({x:PL.x,y:PL.y-30,v:'❄️冻结!',crit:false,life:0,elemText:true});
+        }
+      }
+    }
+
+    if(PL._freezeDebuff>0){
+      PL._freezeDebuff-=dt;
+      playerSpdMult=Math.min(playerSpdMult,.2);
+    }
     if(m.slowAura&&dist(m,PL)<80)playerSpdMult=Math.min(playerSpdMult,.5);
 
     let dx=PL.x-m.x,dy=PL.y-m.y,d=Math.hypot(dx,dy);
-    if(m.range&&d<m.range){
-      let shootTimer=m._shootTimer||0;m._shootTimer=shootTimer+dt;
-      if(m._shootTimer>1.8){
-        m._shootTimer=0;let ang=Math.atan2(PL.y-m.y,PL.x-m.x),sp=3.5;
-        monsters.push({emoji:"🔮",name:"魔法弹",hp:1,maxHp:1,atk:m.atk,spd:sp,s:12,x:m.x,y:m.y,boss:false,
-          gold:0,c:m.c,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:0,projectile:true,
-          vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:180});
+    if(m.shootRange>0&&d<m.shootRange){
+      m._shootTimer+=dt;
+      let cd=m.shootCD;
+      if(m.ability==='speed')cd*=.7;
+      if(m._shootTimer>cd){
+        m._shootTimer=0;
+        let ang=Math.atan2(PL.y-m.y,PL.x-m.x),sp=m.projSpd||2.5;
+        let projEmoji=m.projEmoji||"🔮";
+        let ps=m.boss?16:13;
+        monsters.push({emoji:projEmoji,name:"弹幕",hp:1,maxHp:1,atk:m.atk,spd:sp,s:ps,x:m.x,y:m.y,boss:false,
+          gold:0,c:m.c,element:m.element||null,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:0,projectile:true,
+          vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:300});
+        if(m.boss&&G.wave>=6){
+          for(let bi=0;bi<2;bi++){
+            let ba=ang+(bi===0?.35:-.35);
+            monsters.push({emoji:projEmoji,name:"弹幕",hp:1,maxHp:1,atk:Math.round(m.atk*.6),spd:sp,s:13,x:m.x,y:m.y,boss:false,
+              gold:0,c:m.c,element:m.element||null,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:0,projectile:true,
+              vx:Math.cos(ba)*sp,vy:Math.sin(ba)*sp,life:300});
+          }
+        }
+        // Muzzle flash - bright burst at shooter position
+        spawnParticles(m.x,m.y,8,m.c);
+        spawnParticles(m.x,m.y,5,'#fff');
+        // Shoot line flash
+        particles.push({x:m.x,y:m.y,vx:Math.cos(ang)*40,vy:Math.sin(ang)*40,life:8,maxLife:8,color:m.c});
       }
+      if(d>100){m.x+=dx/d*m.spd*.2;m.y+=dy/d*m.spd*.2}
     }else if(d>m.s+PL.r){
       m.x+=dx/d*m.spd;m.y+=dy/d*m.spd;
     }else{
       let dmg=Math.round(m.atk*dt);
+      if(m.ability==='power')dmg=Math.round(dmg*1.5);
+      let eMult=getElementBonus(m.element,PL.element);
+      dmg=Math.round(dmg*eMult);
       PL.hp-=dmg;
       if(dmg>0)spawnDamageNum(PL.x,PL.y-20,dmg,false);
       spawnParticles(PL.x,PL.y,4,'#ff4444');
       spawnParticles(PL.x,PL.y,3,'#fbbf24');
       screenFlash=Math.max(screenFlash,3);screenShake=Math.max(screenShake,3);
-      // Enemy knockback player
       if(m.knockback){
         let kbAng=Math.atan2(PL.y-m.y,PL.x-m.x);
         PL.x+=Math.cos(kbAng)*20;PL.y+=Math.sin(kbAng)*20;
@@ -606,10 +956,9 @@ function update(dt){
     if(m.y>H+60){monsters.splice(i,1);continue}
   }
 
-  // Update bullets (projectiles with trail)
+  // Update bullets
   for(let i=bullets.length-1;i>=0;i--){
     let b=bullets[i];
-    // Store trail
     if(!b.isPet){b.trail.push({x:b.x,y:b.y});if(b.trail.length>5)b.trail.shift()}
     b.x+=b.vx;b.y+=b.vy;
     if(b.x<-20||b.x>W+20||b.y<-40||b.y>H+20){bullets.splice(i,1);continue}
@@ -629,11 +978,10 @@ function update(dt){
     if(p.life<=0)particles.splice(i,1);
   }
 
-  // Gold & dmg nums
   collectGold();
   for(let i=dmgNums.length-1;i>=0;i--){
     let d=dmgNums[i];d.life++;
-    if(d.life>40)dmgNums.splice(i,1);
+    if(d.life>50)dmgNums.splice(i,1);
   }
 
   checkSkillPanel();updateHUD();
@@ -668,11 +1016,10 @@ function render(){
     ctx.fillText('🪙',g.x,g.y+5);
   }
 
-  // Bullets (projectile style, not laser)
+  // Bullets
   for(let b of bullets){
-    let col=b.crit?'#ffd700':b.isPet?'#60a5fa':'#ffdd57';
+    let col=b.crit?'#ffd700':b.isPet?'#60a5fa':b.bulletColor||'#ffdd57';
     let sz=b.crit?5:b.isPet?3:3.5;
-    // Trail
     if(b.trail&&b.trail.length>1){
       for(let t=0;t<b.trail.length;t++){
         let a=(t+1)/b.trail.length*.5;
@@ -681,11 +1028,9 @@ function render(){
       }
       ctx.globalAlpha=1;
     }
-    // Bullet head glow
     ctx.shadowColor=col;ctx.shadowBlur=b.crit?12:6;
     ctx.fillStyle=col;
     ctx.beginPath();ctx.arc(b.x,b.y,sz,0,PI*2);ctx.fill();
-    // White core
     ctx.shadowBlur=0;ctx.fillStyle='#fff';
     ctx.beginPath();ctx.arc(b.x,b.y,sz*.5,0,PI*2);ctx.fill();
   }
@@ -695,13 +1040,11 @@ function render(){
     ctx.save();ctx.translate(p.x,p.y);
     ctx.font='20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(p.emoji,0,0);
-    // Pet HP bar
     let bw=20,bh=3;
     ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(-bw/2,-14,bw,bh);
     let hpR=p.hp/p.maxHp;
     ctx.fillStyle=hpR>.5?'#60a5fa':'#3b82f6';
     ctx.fillRect(-bw/2,-14,bw*hpR,bh);
-    // Life timer
     ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='9px sans-serif';
     ctx.fillText(Math.ceil(p.life)+'s',0,-20);
     ctx.restore();
@@ -712,7 +1055,7 @@ function render(){
     ctx.save();ctx.translate(m.x,m.y+Math.sin(m.wobble)*2);
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,m.s*.7,m.s*.6,m.s*.15,0,0,PI*2);ctx.fill();
     if(m.boss){ctx.shadowColor=m.c;ctx.shadowBlur=20}
-    if(m.projectile){ctx.shadowColor=m.c;ctx.shadowBlur=18}
+    if(m.projectile){ctx.shadowColor=m.c;ctx.shadowBlur=25}
     if(!m.projectile){
       let bw=m.s*2.2,bh=4;
       ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(-bw/2,-m.s-bh-4,bw,bh);
@@ -723,19 +1066,54 @@ function render(){
     ctx.font=`${m.s*2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(m.emoji,0,0);
     if(m.projectile){
-      ctx.shadowBlur=0;ctx.strokeStyle=m.c;ctx.lineWidth=2;ctx.globalAlpha=.6;
-      ctx.beginPath();ctx.arc(0,0,m.s+4,0,PI*2);ctx.stroke();ctx.globalAlpha=1;
+      ctx.shadowBlur=0;
+      // Bright glow circle
+      ctx.fillStyle=m.c;ctx.globalAlpha=.3;
+      ctx.beginPath();ctx.arc(0,0,m.s+8,0,PI*2);ctx.fill();
+      ctx.globalAlpha=.15;
+      ctx.beginPath();ctx.arc(0,0,m.s+14,0,PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+      // Ring
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.globalAlpha=.5;
+      ctx.beginPath();ctx.arc(0,0,m.s+2,0,PI*2);ctx.stroke();
+      ctx.globalAlpha=1;
     }
     if(!m.projectile){
-      if(m.boss){ctx.shadowBlur=0;ctx.fillStyle='#ff6b6b';ctx.font='bold 11px sans-serif';ctx.fillText(m.name,0,-m.s-14)}
-      // Trait/skill icons
+      ctx.shadowBlur=0;
+      if(m.boss){
+        ctx.fillStyle=m.c;ctx.font='bold 11px sans-serif';ctx.fillText(m.name,0,-m.s-14);
+        if(m.ability){
+          let abilityLabel={speed:'疾风',power:'狂暴',fireAura:'烈焰',freeze:'寒冰'}[m.ability];
+          ctx.fillStyle='#fbbf24';ctx.font='9px sans-serif';
+          ctx.fillText(abilityLabel,0,-m.s-26);
+        }
+      }
+      if(m.element){
+        let el=ELEMENTS[m.element];
+        ctx.font='10px serif';
+        ctx.fillText(el.emoji,0,m.s+12);
+      }
       let icons=[];
+      if(m.shootRange>0){
+        icons.push('🎯');
+        // Charge indicator - arc showing shooting cooldown progress
+        if(m._shootTimer!==undefined){
+          let cd=m.shootCD;
+          if(m.ability==='speed')cd*=.7;
+          let prog=Math.min(m._shootTimer/cd,1);
+          if(prog>.1){
+            ctx.strokeStyle=m.c;ctx.lineWidth=3;ctx.globalAlpha=.7;
+            ctx.beginPath();ctx.arc(0,-m.s-3,m.s*.6,-PI/2,-PI/2+PI*2*prog);ctx.stroke();
+            ctx.globalAlpha=1;
+          }
+        }
+      }
       if(m.slowAura)icons.push('❄️');
       if(m.knockback)icons.push('💨');
       if(m.poisonSpit)icons.push('☠️');
       if(icons.length>0){
         ctx.font='10px serif';
-        ctx.fillText(icons.join(''),0,m.s+12);
+        ctx.fillText(icons.join(''),m.element?m.s+12:0,m.element?m.s+22:m.s+12);
       }
       if(m.poisonTimer>0){ctx.fillStyle='rgba(139,92,246,.6)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
       if(m.freezeTimer>0){ctx.fillStyle='rgba(147,197,253,.4)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
@@ -747,10 +1125,24 @@ function render(){
   // Player
   {
     let p=PL;ctx.save();ctx.translate(p.x,p.y);
+    if(PL._freezeDebuff>0){
+      ctx.fillStyle='rgba(147,197,253,.25)';ctx.beginPath();ctx.arc(0,0,p.r+8,0,PI*2);ctx.fill();
+    }
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,p.r*.7,p.r*.55,p.r*.15,0,0,PI*2);ctx.fill();
-    ctx.shadowColor='#60a5fa';ctx.shadowBlur=12;
+    let playerGlow=p.element?ELEMENTS[p.element].color:'#60a5fa';
+    // Hero-specific glow color
+    if(PL.hero==='archer')playerGlow='#4ade80';
+    else if(PL.hero==='mage')playerGlow='#60a5fa';
+    else if(PL.hero==='berserker')playerGlow='#f87171';
+    ctx.shadowColor=playerGlow;ctx.shadowBlur=12;
     ctx.font='36px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🧝',0,-2);ctx.restore();
+    ctx.fillText(p.heroEmoji,0,-2);ctx.restore();
+    if(p.element){
+      let el=ELEMENTS[p.element];
+      ctx.strokeStyle=el.color;ctx.lineWidth=1.5;ctx.globalAlpha=.3;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r+6,0,PI*2);ctx.stroke();
+      ctx.globalAlpha=1;
+    }
     let bw=p.r*2,bh=5;
     ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-bw/2,p.y-p.r-bh-8,bw,bh);
     let hpR=p.hp/p.maxHp;
@@ -760,10 +1152,17 @@ function render(){
 
   // Damage numbers
   for(let d of dmgNums){
-    let a=1-d.life/40;
+    let a=1-d.life/50;
     let isCritText=d.v==='暴击!';
-    ctx.fillStyle=isCritText?`rgba(255,100,100,${a})`:d.crit?`rgba(255,215,0,${a})`:`rgba(255,255,255,${a})`;
-    ctx.font=`${d.crit?(isCritText?20:18):14}px bold sans-serif`;ctx.textAlign='center';
+    let isElemText=d.elemText;
+    if(isElemText){
+      ctx.fillStyle=`rgba(200,180,255,${a})`;
+      ctx.font='12px bold sans-serif';
+    }else{
+      ctx.fillStyle=isCritText?`rgba(255,100,100,${a})`:d.crit?`rgba(255,215,0,${a})`:`rgba(255,255,255,${a})`;
+      ctx.font=`${d.crit?(isCritText?20:18):14}px bold sans-serif`;
+    }
+    ctx.textAlign='center';
     ctx.shadowColor=d.crit?'#ffd700':'transparent';ctx.shadowBlur=d.crit?8:0;
     ctx.fillText(d.v+(d.crit&&!isCritText?'!':''),d.x,d.y-a*28);
     ctx.shadowBlur=0;
@@ -798,9 +1197,17 @@ function render(){
     ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,H-58,W,22);
     for(let i=0;i<skillKeys.length;i++){
       let key=skillKeys[i],sk=SKILLS[key];
-      ctx.fillStyle='#fff';ctx.font='13px serif';
+      ctx.fillStyle=sk.unique?'#fbbf24':'#fff';ctx.font='13px serif';
       ctx.fillText(sk.emoji+'Lv.'+PL.skills[key],10+i*60,H-42);
     }
+  }
+
+  // Element counter legend
+  if(PL.element){
+    let el=ELEMENTS[PL.element];
+    let counterEl=ELEMENTS[COUNTER[PL.element]];
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px sans-serif';ctx.textAlign='left';
+    ctx.fillText(el.emoji+'→'+counterEl.emoji+'克制',8,H-34);
   }
 
   // Version
@@ -827,31 +1234,36 @@ let lastTs=0;
 
 // Input
 c.addEventListener('pointerdown',e=>{
-  if(paused)return;
+  if(paused||!G)return;
   let rect=c.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
   let tx=(e.clientX-rect.left)*sx,ty=(e.clientY-rect.top)*sy;
   PL.dragX=tx;
 });
 
 c.addEventListener('pointermove',e=>{
-  if(paused||PL.dragX===null)return;
+  if(paused||!G||PL.dragX===null)return;
   let rect=c.getBoundingClientRect(),sx=W/rect.width;
   let tx=(e.clientX-rect.left)*sx;
-  PL.x=clamp(tx,PL.r,W-PL.r);
+  let spdMult=1;
+  if(PL._freezeDebuff>0)spdMult=.2;
+  PL.x+=((clamp(tx,PL.r,W-PL.r)-PL.x)*.5*spdMult);
 });
 
 c.addEventListener('pointerup',e=>{
-  if(paused)return;
+  if(paused||!G)return;
   if(PL.dragX!==null){PL.dragX=null;return}
 });
 
 R('restart-btn').addEventListener('click',()=>{
-  cancelAnimationFrame(gameLoop);initGame();lastTs=0;
-  gameLoop=requestAnimationFrame(gameFrame);
+  cancelAnimationFrame(gameLoop);
+  R('game-over').style.display='none';
+  R('hero-select').style.display='flex';
+  G=null;heroClass=null;
+  showHeroSelect();
 });
 
-// Start
-initGame();gameLoop=requestAnimationFrame(gameFrame);
+// Start - show hero selection
+showHeroSelect();
 </script>
 </body>
 </html>
