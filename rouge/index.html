@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>肉鸽打怪</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0a0a14;display:flex;justify-content:center;align-items:center;
+  height:100vh;overflow:hidden;touch-action:none;user-select:none;
+  font-family:'PingFang SC','Microsoft YaHei',sans-serif;
+}
+#game{
+  position:relative;
+  width:min(100vw,420px);height:min(100vh,850px);
+  overflow:hidden;
+}
+canvas{display:block;width:100%;height:100%}
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#hud{
+  position:absolute;top:8px;left:8px;right:8px;
+  display:flex;flex-wrap:wrap;gap:4px;z-index:10;
+}
+.hud-item{
+  background:rgba(0,0,0,.65);color:#fff;padding:4px 10px;
+  border-radius:10px;font-size:12px;font-weight:700;
+  display:flex;align-items:center;gap:4px;
+}
+.hud-item .icon{font-size:15px}
+#skill-panel{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,.8);display:none;flex-direction:column;
+  justify-content:center;align-items:center;z-index:50;
+  pointer-events:auto;
+}
+#skill-title{
+  color:#ffd700;font-size:22px;font-weight:900;margin-bottom:6px;
+  text-shadow:0 0 20px rgba(255,215,0,.5);
+}
+#skill-sub{color:#aaa;font-size:13px;margin-bottom:16px}
+#skill-cards{
+  display:flex;flex-direction:column;gap:10px;width:85%;max-width:340px;
+}
+.skill-card{
+  background:linear-gradient(135deg,#1a1a3e,#0d0d2b);border:2px solid #2a2a5e;
+  border-radius:14px;padding:14px 16px;cursor:pointer;transition:.2s;
+  display:flex;align-items:center;gap:12px;
+}
+.skill-card:hover,.skill-card:active{
+  border-color:#ffd700;background:linear-gradient(135deg,#2a2a5e,#1a1a4e);
+  transform:scale(1.03);
+}
+.skill-icon{font-size:36px;flex-shrink:0}
+.skill-info h4{color:#fff;font-size:14px;margin-bottom:2px}
+.skill-info p{color:#aaa;font-size:11px;line-height:1.4}
+.skill-lv{color:#ffd700;font-size:11px;margin-left:6px}
+#game-over{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,.85);display:none;flex-direction:column;
+  justify-content:center;align-items:center;z-index:60;
+  pointer-events:auto;
+}
+#game-over h2{color:#e74c3c;font-size:28px;margin-bottom:12px}
+#game-over .stats{color:#fff;font-size:14px;text-align:center;line-height:2;margin-bottom:20px}
+#game-over .stat-v{color:#ffd700;font-weight:700}
+#restart-btn{
+  background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;border:none;
+  padding:12px 40px;font-size:16px;font-weight:700;border-radius:25px;
+  cursor:pointer;transition:.2s;
+}
+#restart-btn:hover,#restart-btn:active{transform:scale(1.08)}
+.dmg-num{
+  position:absolute;color:#ff4444;font-size:14px;font-weight:900;
+  pointer-events:none;animation:floatUp .8s ease-out forwards;
+  text-shadow:0 0 4px rgba(255,0,0,.5);
+}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-40px)}}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="c"></canvas>
+  <div id="ui">
+    <div id="hud">
+      <div class="hud-item"><span class="icon">❤️</span><span id="hp-txt">100</span></div>
+      <div class="hud-item"><span class="icon">🌊</span><span id="wave-txt">1</span></div>
+      <div class="hud-item"><span class="icon">💰</span><span id="gold-txt">0</span></div>
+      <div class="hud-item"><span class="icon">💀</span><span id="kill-txt">0</span></div>
+    </div>
+    <div id="skill-panel">
+      <div id="skill-title">🔮 选择升级</div>
+      <div id="skill-sub">选择一个技能提升实力</div>
+      <div id="skill-cards"></div>
+    </div>
+    <div id="game-over">
+      <h2>💀 游戏结束</h2>
+      <div class="stats">
+        <div>生存波次: <span class="stat-v" id="end-wave">1</span></div>
+        <div>击败敌人: <span class="stat-v" id="end-kill">0</span></div>
+        <div>获得金币: <span class="stat-v" id="end-gold">0</span></div>
+      </div>
+      <button id="restart-btn">再来一局</button>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+const W=420,H=800,PI=Math.PI;
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+c.width=W;c.height=H;
+const dpr=Math.min(window.devicePixelRatio||1,2);
+c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);
+
+const R=id=>document.getElementById(id),rand=(a,b)=>Math.random()*(b-a)+a;
+const randi=(a,b)=>Math.floor(rand(a,b+1));
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+
+let G,PL,monsters,bullets,particles,golds,dmgNums;
+let spawnTimer,attackTimer,gameLoop,skillGoldBase,nextSkillGold;
+let skillPanelShown=false,paused=false;
+
+const MONSTERS={
+  slime:{emoji:"🟢",name:"史莱姆",hp:30,atk:5,spd:.6,s:18,gold:8,c:"#4ade80"},
+  bat:{emoji:"🦇",name:"蝙蝠",hp:20,atk:8,spd:1.2,s:16,gold:10,c:"#a78bfa"},
+  goblin:{emoji:"👹",name:"哥布林",hp:50,atk:12,spd:.8,s:20,gold:15,c:"#f87171"},
+  skeleton:{emoji:"💀",name:"骷髅兵",hp:70,atk:15,spd:.5,s:22,gold:20,c:"#d4d4d8"},
+  mage:{emoji:"🧙",name:"暗法师",hp:45,atk:20,spd:.4,s:18,gold:25,c:"#e879f9",range:150},
+  boss:{emoji:"👑",name:"魔王",hp:300,atk:25,spd:.35,s:32,gold:80,c:"#ef4444",boss:true}
+};
+
+const SKILLS={
+  multishot:{name:"多重射击",emoji:"🎯",desc:"同时发射 {n} 发子弹",maxLv:4,base:1,apply(p){p.multi+=1}},
+  atkspd:{name:"急速攻击",emoji:"⚡",desc:"攻击速度 +{n}%",maxLv:5,base:1,apply(p){p.atkSpdBonus+=.2}},
+  damage:{name:"力量强化",emoji:"💪",desc:"攻击力 +{n}%",maxLv:5,base:1,apply(p){p.dmgBonus+=.25}},
+  pierce:{name:"穿透箭",emoji:"🏹",desc:"子弹穿透 +{n} 个敌人",maxLv:3,base:1,apply(p){p.pierce+=1}},
+  explosive:{name:"爆炸弹",emoji:"💥",desc:"子弹命中时爆炸，范围 {n}",maxLv:4,base:0,apply(p){p.explosive=(p.explosive||0)+1}},
+  crit:{name:"致命一击",emoji:"🗡️",desc:"暴击率 +{n}%",maxLv:5,base:1,apply(p){p.critChance+=.12}},
+  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4}},
+  poison:{name:"剧毒",emoji:"☠️",desc:"击中附加 {n} 秒中毒",maxLv:4,base:0,apply(p){p.poisonDot=(p.poisonDot||0)+1.5}},
+  freeze:{name:"冰霜弹",emoji:"❄️",desc:"{n}% 几率减速敌人",maxLv:4,base:1,apply(p){p.freezeChance+=.18}},
+  heal:{name:"生命汲取",emoji:"🩸",desc:"击杀回复 {n}% HP",maxLv:4,base:0,apply(p){p.vampire=(p.vampire||0)+.05}},
+  chain:{name:"连锁闪电",emoji:"⚡",desc:"{n}% 几率连锁2个敌人",maxLv:4,base:0,apply(p){p.chainChance=(p.chainChance||0)+.2}},
+  maxHp:{name:"生命上限",emoji:"❤️",desc:"最大生命 +{n}%",maxLv:5,base:1,apply(p){p.maxHpBonus+=.3}},
+  movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25}},
+  gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35}},
+  regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01}},
+}
+
+function getSkillLevel(p,key){return p.skills[key]||0}
+function getSkillVal(p,key,n=1){
+  let lv=getSkillLevel(p,key),s=SKILLS[key];
+  if(!s)return 0;
+  if(key==='explosive')return lv*1.2;
+  if(key==='poison')return lv*1.5;
+  if(key==='vampire')return lv*.05;
+  if(key==='regen')return lv*.01;
+  if(key==='chain')return lv*.2;
+  if(key==='freeze')return lv*.18;
+  return s.base+lv*n;
+}
+
+function initPlayer(){
+  return{
+    x:W/2,y:H-120,r:20,hp:100,maxHp:100,atk:12,atkSpeed:1,atkRange:300,
+    multi:1,pierce:0,explosive:0,critChance:0,dmgBonus:1,atkSpdBonus:1,
+    magnetRange:1,poisonDot:0,freezeChance:0,vampire:0,chainChance:0,
+    maxHpBonus:1,spdBonus:1,goldBonus:1,regen:0,gold:0,
+    skills:{},dragX:null
+  }
+}
+
+function initGame(){
+  PL=initPlayer();monsters=[];bullets=[];particles=[];golds=[];
+  dmgNums=[];G={wave:1,kills:0,score:0,time:0,totalGold:0};
+  spawnTimer=0;attackTimer=0;skillGoldBase=60;nextSkillGold=skillGoldBase;
+  skillPanelShown=false;paused=false;
+  R('skill-panel').style.display='none';R('game-over').style.display='none';
+  updateHUD();
+}
+
+function updateHUD(){
+  R('hp-txt').textContent=Math.ceil(PL.hp);
+  R('wave-txt').textContent=G.wave;
+  R('gold-txt').textContent=PL.gold;
+  R('kill-txt').textContent=G.kills;
+}
+
+function getWaveMonsterCount(){return 4+G.wave}
+function getSpawnInterval(){return Math.max(400,1600-G.wave*80)}
+function getBossWave(){return G.wave%5===0&&G.wave>0}
+function getMonsterTier(){
+  let r=Math.random(),w=G.wave;
+  if(r<.35)return'slime';
+  if(r<.6)return'bat';
+  if(r<.78)return'goblin';
+  if(r<.9)return'skeleton';
+  if(r<.96)return'mage';
+  return'skeleton';
+}
+
+function spawnMonster(){
+  if(getBossWave()&&monsters.filter(m=>m.boss).length===0){
+    let t=MONSTERS.boss,s=G.wave*.15+1;
+    monsters.push({...t,emoji:t.emoji,name:t.name,hp:t.hp*s,maxHp:t.hp*s,atk:t.atk*s,spd:t.spd,s:t.s,x:rand(60,W-60),y:-40,r:t.s,boss:true,gold:t.gold*s,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:rand(0,PI*2)});
+  }
+  let type=getMonsterTier(),t=MONSTERS[type],s=1+G.wave*.08;
+  if(type==='mage')s*=1.2;
+  let mx=rand(40,W-40),my=rand(-60,-10);
+  monsters.push({...t,emoji:t.emoji,name:t.name,hp:t.hp*s,maxHp:t.hp*s,atk:t.atk*s,spd:t.spd,gold:t.gold*s,s:t.s,x:mx,y:my,boss:false,r:t.s,range:t.range||0,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:rand(0,PI*2)});
+}
+
+function findNearestMonster(){
+  let nearest=null,minD=Infinity;
+  for(let m of monsters){
+    if(m.projectile)continue;
+    let d=dist(PL,m);
+    if(d<PL.atkRange&&d<minD){minD=d;nearest=m}
+  }
+  return nearest;
+}
+
+function shoot(target){
+  let ang=Math.atan2(target.y-PL.y,target.x-PL.x);
+  let crit=Math.random()<PL.critChance;
+  for(let i=0;i<PL.multi;i++){
+    let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.12;
+    let a=ang+spread;
+    bullets.push({
+      x:PL.x,y:PL.y-10,vx:Math.cos(a)*8,vy:Math.sin(a)*8,
+      dmg:PL.atk*PL.dmgBonus*(crit?2.5:1),
+      pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
+      poison:PL.poisonDot,freeze:PL.freezeChance,
+      crit,cx:PL.x,cy:PL.y-10
+    });
+  }
+}
+
+function hitMonster(bullet,monster,idx){
+  if(bullet.hit.has(idx))return false;
+  bullet.hit.add(idx);
+  let dmg=Math.round(bullet.dmg);
+  monster.hp-=dmg;monster.hitFlash=8;
+  spawnDamageNum(monster.x,monster.y,dmg,bullet.crit);
+  spawnParticles(monster.x,monster.y,4,'#ff6b6b');
+  if(bullet.poison>0){monster.poisonTimer=Math.max(monster.poisonTimer||0,bullet.poison*60)}
+  if(Math.random()<bullet.freeze)monster.freezeTimer=90;
+  if(bullet.explosive>0){
+    for(let i=monsters.length-1;i>=0;i--){
+      let m=monsters[i];if(m===monster)continue;
+      if(dist(monster,m)<bullet.explosive*45)spawnParticles(m.x,m.y,3,'#fbbf24');m.hp-=dmg*.4;m.hitFlash=8;
+    }
+    spawnParticles(monster.x,monster.y,8,'#fbbf24');
+  }
+  if(Math.random()<PL.chainChance){
+    let candidates=monsters.filter((m,i)=>{if(!bullet.hit.has(i)&&m!==monster)return dist(monster,m)<150;return false});
+    if(candidates.length>0){
+      let ct=candidates.sort((a,b)=>dist(monster,a)-dist(monster,b)).slice(0,2);
+      for(let cm of ct){
+        let ci=monsters.indexOf(cm);
+        if(ci>=0&&!bullet.hit.has(ci)){bullet.hit.add(ci);cm.hp-=dmg*.5;cm.hitFlash=8;spawnParticles(cm.x,cm.y,3,'#a78bfa')}
+      }
+    }
+  }
+  if(monster.hp<=0)killMonster(monster);
+  return monster.hp<=0||bullet.pierce<0;
+}
+
+function killMonster(m){
+  spawnParticles(m.x,m.y,10,m.c);spawnGold(m.x,m.y,Math.round(m.gold*PL.goldBonus));
+  G.kills++;
+  if(PL.vampire>0)PL.hp=Math.min(PL.maxHp,PL.hp+PL.maxHp*PL.vampire);
+  let idx=monsters.indexOf(m);if(idx>=0)monsters.splice(idx,1);
+}
+
+function spawnGold(x,y,amt){
+  for(let i=0;i<Math.min(amt/5,6);i++){
+    let gv=Math.ceil(amt/Math.min(amt/5,6));
+    golds.push({x:x+rand(-10,10),y:y+rand(-10,10),v:gv,vy:-rand(1,3),life:60});
+  }
+}
+
+function spawnParticles(x,y,n,color){
+  for(let i=0;i<n;i++)
+    particles.push({x,y,vx:rand(-2,2),vy:rand(-3,-1),life:rand(15,30),maxLife:30,color});
+}
+
+function spawnDamageNum(x,y,dmg,crit){
+  dmgNums.push({x:x+rand(-10,10),y:y-10,v:dmg,crit:!!crit,life:0});
+}
+
+function collectGold(){
+  let magRange=100*PL.magnetRange;
+  for(let i=golds.length-1;i>=0;i--){
+    let g=golds[i];g.life--;g.vy+=.15;g.y+=g.vy;
+    if(g.life<=0||g.y>H+50){golds.splice(i,1);continue}
+    let d=dist(PL,g);
+    if(d<magRange){g.x-=(g.x-PL.x)*.15;g.y-=(g.y-PL.y)*.15}
+    if(d<PL.r+12){PL.gold+=g.v;G.totalGold+=g.v;golds.splice(i,1)}
+  }
+}
+
+function checkSkillPanel(){
+  if(skillPanelShown||paused)return;
+  if(PL.gold>=nextSkillGold){
+    skillPanelShown=true;paused=true;
+    showSkillPanel();
+  }
+}
+
+function getRandomSkills(n=3){
+  let pool=Object.keys(SKILLS).filter(k=>getSkillLevel(PL,k)<SKILLS[k].maxLv);
+  if(pool.length===0)pool=Object.keys(SKILLS);
+  let result=[];
+  for(let i=0;i<Math.min(n,pool.length);i++){
+    let idx=randi(0,pool.length-1);
+    result.push(pool.splice(idx,1)[0]);
+  }
+  return result;
+}
+
+function showSkillPanel(){
+  let panel=R('skill-panel'),cards=R('skill-cards');
+  panel.style.display='flex';cards.innerHTML='';
+  let skills=getRandomSkills(3);
+  for(let key of skills){
+    let s=SKILLS[key],lv=getSkillLevel(PL,key)+1,val=s.base+lv;
+    if(key==='explosive')val=lv*1.2;
+    if(key==='poison')val=lv*1.5;
+    if(key==='vampire')val=lv*.05;
+    if(key==='chain')val=lv*.2;
+    if(key==='freeze')val=lv*.18;
+    if(key==='regen')val=lv*.01;
+    let desc=s.desc.replace('{n}',key==='regen'||key==='vampire'?Math.round(val*100)+'%':val);
+    let div=document.createElement('div');
+    div.className='skill-card';
+    div.innerHTML=`<div class="skill-icon">${s.emoji}</div><div class="skill-info"><h4>${s.name}<span class="skill-lv">Lv.${lv}/${s.maxLv}</span></h4><p>${desc}</p></div>`;
+    div.onclick=()=>pickSkill(key);
+    cards.appendChild(div);
+  }
+}
+
+function pickSkill(key){
+  PL.skills[key]=(PL.skills[key]||0)+1;
+  SKILLS[key].apply(PL);
+  PL.gold-=nextSkillGold;
+  let prev=nextSkillGold;
+  skillGoldBase+=20;
+  nextSkillGold=skillGoldBase*Math.pow(1.15,skillGoldBase/60-1)+skillGoldBase;
+  R('skill-panel').style.display='none';
+  skillPanelShown=false;paused=false;
+  if(PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+20);
+  updateHUD();
+}
+
+function gameOver(){
+  paused=true;skillPanelShown=true;
+  R('game-over').style.display='flex';
+  R('end-wave').textContent=G.wave;R('end-kill').textContent=G.kills;R('end-gold').textContent=G.totalGold;
+}
+
+function update(dt){
+  if(paused)return;
+  dt=Math.min(dt,.1);G.time+=dt;
+
+  // Player HP
+  if(PL.regen>0&&PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+PL.maxHp*PL.regen*dt);
+
+  // Auto attack
+  attackTimer+=dt;
+  if(attackTimer>=1/(PL.atkSpeed*PL.atkSpdBonus)){
+    attackTimer=0;
+    let target=findNearestMonster();
+    if(target)shoot(target);
+  }
+
+  // Spawn
+  spawnTimer+=dt;
+  let spawnInt=getSpawnInterval()/1000;
+  if(spawnTimer>=spawnInt&&monsters.length<getWaveMonsterCount()){
+    spawnTimer=0;spawnMonster();
+  }
+  if(monsters.length===0&&spawnTimer>.5){
+    G.wave++;
+    if(G.wave%5===0&&G.wave>0)spawnMonster();
+    updateHUD();
+  }
+
+  // Update monsters
+  for(let i=monsters.length-1;i>=0;i--){
+    let m=monsters[i];
+    if(m.projectile){m.x+=m.vx;m.y+=m.vy;m.life--;if(m.life<=0||m.x<-30||m.x>W+30||m.y<-30||m.y>H+30){monsters.splice(i,1);continue}
+      let pd=dist(m,PL);if(pd<PL.r+m.s){PL.hp-=m.atk;spawnParticles(PL.x,PL.y,3,'#e879f9');monsters.splice(i,1);continue}else continue}
+    m.wobble+=dt*4;
+    if(m.freezeTimer>0){m.freezeTimer-=1;continue}
+    if(m.poisonTimer>0){
+      m.poisonTimer-=1;
+      if(Math.floor(m.poisonTimer)%30===0){m.hp-=PL.poisonDot*2;spawnDamageNum(m.x,m.y,Math.round(PL.poisonDot*2),false)}
+      if(m.hp<=0){killMonster(m);continue}
+    }
+    if(m.hitFlash>0)m.hitFlash--;
+
+    let dx=PL.x-m.x,dy=PL.y-m.y,d=Math.hypot(dx,dy);
+    if(m.range&&d<m.range){
+      let shootTimer=m._shootTimer||0;m._shootTimer=shootTimer+dt;
+      if(m._shootTimer>1.8){
+        m._shootTimer=0;let ang=Math.atan2(PL.y-m.y,PL.x-m.x),sp=3;
+        monsters.push({emoji:"🔮",name:"魔法弹",hp:1,maxHp:1,atk:m.atk,spd:sp,s:6,x:m.x,y:m.y,boss:false,
+          gold:0,c:m.c,poisonTimer:0,freezeTimer:0,hitFlash:0,wobble:0,projectile:true,
+          vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:180});
+      }
+    }else if(d>m.s+PL.r){
+      m.x+=dx/d*m.spd;m.y+=dy/d*m.spd;
+    }else{
+      PL.hp-=m.atk*dt;spawnParticles(PL.x,PL.y,2,'#ff0000');
+      if(PL.hp<=0){gameOver();return}
+    }
+    m.x=clamp(m.x,m.s,W-m.s);
+    if(m.y>H+60){monsters.splice(i,1);continue}
+  }
+
+  // Update bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    let b=bullets[i];
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.x<-20||b.x>W+20||b.y<-20||b.y>H+20){bullets.splice(i,1);continue}
+    let hit=false;
+    for(let j=monsters.length-1;j>=0;j--){
+      if(dist(b,monsters[j])<monsters[j].s+4){
+        if(hitMonster(b,monsters[j],j)){hit=true;break}
+      }
+    }
+    if(hit&&b.pierce<=0){bullets.splice(i,1);continue}
+    if(hit){b.pierce--}
+  }
+
+  // Update particles
+  for(let i=particles.length-1;i>=0;i--){
+    let p=particles[i];p.life--;p.x+=p.vx;p.y+=p.vy;
+    if(p.life<=0)particles.splice(i,1);
+  }
+
+  // Gold & damage nums
+  collectGold();
+  for(let i=dmgNums.length-1;i>=0;i--){
+    let d=dmgNums[i];d.life++;
+    if(d.life>40)dmgNums.splice(i,1);
+  }
+
+  checkSkillPanel();
+  updateHUD();
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+
+  // Grid bg
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=.5;
+  for(let x=0;x<W;x+=40)ctx.strokeRect(x,0,0,H);
+  for(let y=0;y<H;y+=40)ctx.strokeRect(0,y,W,0);
+
+  // Particles
+  for(let p of particles){
+    let a=p.life/p.maxLife;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,2*a,0,PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Gold
+  for(let g of golds){
+    ctx.fillStyle='#ffd700';ctx.font='14px serif';
+    ctx.fillText('🪙',g.x-8,g.y+5);
+  }
+
+  // Bullets
+  for(let b of bullets){
+    ctx.strokeStyle=b.crit?'#ff0':'#ffd700';
+    ctx.lineWidth=b.crit?3:2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(b.cx,b.cy);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,b.crit?4:2.5,0,PI*2);ctx.fill();
+  }
+
+  // Monsters
+  for(let m of monsters){
+    ctx.save();ctx.translate(m.x,m.y+Math.sin(m.wobble)*2);
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,m.s*.7,m.s*.6,m.s*.15,0,0,PI*2);ctx.fill();
+    // Glow boss
+    if(m.boss){ctx.shadowColor=m.c;ctx.shadowBlur=15}
+    // HP bar bg
+    if(!m.projectile){
+    let bw=m.s*2.2,bh=4;
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(-bw/2,-m.s-bh-4,bw,bh);
+    let hpR=m.hp/m.maxHp;
+    ctx.fillStyle=hpR>.5?'#4ade80':hpR>.25?'#fbbf24':'#ef4444';
+    ctx.fillRect(-bw/2,-m.s-bh-4,bw*hpR,bh);
+    }
+    // Emoji
+    ctx.font=`${m.s*2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(m.emoji,0,0);
+    if(!m.projectile){
+    // Poison
+    if(m.poisonTimer>0){ctx.fillStyle='rgba(139,92,246,.6)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
+    // Freeze
+    if(m.freezeTimer>0){ctx.fillStyle='rgba(147,197,253,.4)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
+    // Hit flash
+    if(m.hitFlash>0){ctx.fillStyle='rgba(255,255,255,.3)';ctx.beginPath();ctx.arc(0,0,m.s+2,0,PI*2);ctx.fill()}
+    }
+    ctx.restore();
+  }
+
+  // Player
+  {
+    let p=PL;
+    ctx.save();ctx.translate(p.x,p.y);
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,p.r*.7,p.r*.55,p.r*.15,0,0,PI*2);ctx.fill();
+    ctx.shadowColor='#60a5fa';ctx.shadowBlur=12;
+    ctx.font='36px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🧝',0,-2);
+    ctx.restore();
+
+    // HP bar above player
+    let bw=p.r*2,bh=5;
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-bw/2,p.y-p.r-bh-8,bw,bh);
+    let hpR=p.hp/p.maxHp;
+    ctx.fillStyle=hpR>.5?'#4ade80':hpR>.25?'#fbbf24':'#ef4444';
+    ctx.fillRect(p.x-bw/2,p.y-p.r-bh-8,bw*hpR,bh);
+  }
+
+  // Damage numbers
+  for(let d of dmgNums){
+    let a=1-d.life/40;
+    ctx.fillStyle=d.crit?`rgba(255,215,0,${a})`:`rgba(255,255,255,${a})`;
+    ctx.font=`${d.crit?18:14}px bold sans-serif`;ctx.textAlign='center';
+    ctx.fillText(d.crit?`${d.v}!`:d.v,d.x,d.y-a*25);
+  }
+
+  // Gold progress bar
+  let progW=W-60,progH=4;
+  ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(30,H-30,progW,progH);
+  let progress=PL.gold/nextSkillGold;
+  ctx.fillStyle='#ffd700';
+  let grad=ctx.createLinearGradient(30,0,30+progW*progress,0);
+  grad.addColorStop(0,'#ffd700');grad.addColorStop(1,'#fbbf24');
+  ctx.fillStyle=grad;ctx.fillRect(30,H-30,progW*progress,progH);
+  ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText(`🔮 ${PL.gold}/${Math.floor(nextSkillGold)}`,W/2,H-34);
+
+  // Active skills bar
+  let skillKeys=Object.keys(PL.skills);
+  if(skillKeys.length>0){
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,H-58,W,22);
+    for(let i=0;i<skillKeys.length;i++){
+      let key=skillKeys[i],sk=SKILLS[key];
+      ctx.fillStyle='#fff';ctx.font='13px serif';
+      ctx.fillText(sk.emoji+'Lv.'+PL.skills[key],10+i*60,H-42);
+    }
+  }
+}
+
+function gameFrame(ts){
+  if(!G)return;
+  let dt=lastTs?(ts-lastTs)/1000:.016;
+  lastTs=ts;
+  update(dt);render();gameLoop=requestAnimationFrame(gameFrame);
+}
+let lastTs=0;
+
+// Input
+c.addEventListener('pointerdown',e=>{
+  if(paused)return;
+  let rect=c.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+  let tx=(e.clientX-rect.left)*sx,ty=(e.clientY-rect.top)*sy;
+  PL.dragX=tx;
+});
+
+c.addEventListener('pointermove',e=>{
+  if(paused||PL.dragX===null)return;
+  let rect=c.getBoundingClientRect(),sx=W/rect.width;
+  let tx=(e.clientX-rect.left)*sx;
+  PL.x=clamp(tx,PL.r,W-PL.r);
+});
+
+c.addEventListener('pointerup',e=>{
+  if(paused)return;
+  if(PL.dragX!==null){PL.dragX=null;return}
+  let rect=c.getBoundingClientRect(),sx=W/rect.width,sy=H/rect.height;
+  let tx=(e.clientX-rect.left)*sx,ty=(e.clientY-rect.top)*sy;
+  if(dist({x:tx,y:ty},PL)>PL.r*1.5){
+    let ang=Math.atan2(ty-PL.y,tx-PL.x);
+    for(let i=0;i<PL.multi;i++){
+      let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.15;
+      let a=ang+spread,bullet={
+        x:PL.x,y:PL.y-10,vx:Math.cos(a)*8,vy:Math.sin(a)*8,
+        dmg:PL.atk*PL.dmgBonus*(Math.random()<PL.critChance?2.5:1),
+        pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
+        poison:PL.poisonDot,freeze:PL.freezeChance,
+        crit:Math.random()<PL.critChance,cx:PL.x,cy:PL.y-10
+      };
+      bullets.push(bullet);
+    }
+    attackTimer=0;
+  }
+});
+
+R('restart-btn').addEventListener('click',()=>{
+  cancelAnimationFrame(gameLoop);initGame();lastTs=0;
+  gameLoop=requestAnimationFrame(gameFrame);
+});
+
+// Start
+initGame();gameLoop=requestAnimationFrame(gameFrame);
+</script>
+</body>
+</html>
