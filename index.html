@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>游戏入口导航</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-1: #f6f8ff;
+      --bg-2: #fff4e8;
+      --ink: #172033;
+      --muted: #5d6880;
+      --brand: #ef6f3c;
+      --brand-2: #ff9f1c;
+      --card: rgba(255, 255, 255, 0.86);
+      --line: rgba(23, 32, 51, 0.12);
+      --ok: #179f5a;
+      --warn: #b35b00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1000px 500px at -10% -10%, rgba(255, 159, 28, 0.3), transparent 60%),
+        radial-gradient(800px 400px at 110% 10%, rgba(239, 111, 60, 0.28), transparent 60%),
+        linear-gradient(130deg, var(--bg-1), var(--bg-2));
+      background-attachment: fixed;
+      overflow-x: hidden;
+    }
+
+    .bg-shape {
+      position: fixed;
+      border-radius: 999px;
+      filter: blur(30px);
+      pointer-events: none;
+      opacity: 0.4;
+      z-index: 0;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    .shape-a {
+      width: 180px;
+      height: 180px;
+      background: #ffd166;
+      top: 18%;
+      left: 7%;
+    }
+
+    .shape-b {
+      width: 220px;
+      height: 220px;
+      background: #ef476f;
+      top: 65%;
+      right: 4%;
+      animation-delay: 1.2s;
+    }
+
+    .shape-c {
+      width: 160px;
+      height: 160px;
+      background: #06d6a0;
+      top: 36%;
+      right: 22%;
+      animation-delay: 2.2s;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 42px 20px 52px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 28px;
+      animation: rise 0.8s ease-out both;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "ZCOOL KuaiLe", cursive;
+      font-size: clamp(2rem, 3.2vw, 3rem);
+      letter-spacing: 0.04em;
+    }
+
+    .subtitle {
+      margin: 12px auto 0;
+      color: var(--muted);
+      max-width: 740px;
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(16, 27, 42, 0.08);
+      transform: translateY(14px);
+      opacity: 0;
+      animation: rise 0.55s ease-out forwards;
+    }
+
+    .card:nth-child(2) { animation-delay: 80ms; }
+    .card:nth-child(3) { animation-delay: 140ms; }
+    .card:nth-child(4) { animation-delay: 200ms; }
+    .card:nth-child(5) { animation-delay: 260ms; }
+    .card:nth-child(6) { animation-delay: 320ms; }
+
+    .title {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+
+    .path {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      word-break: break-all;
+    }
+
+    .actions {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 14px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      color: #ffffff;
+      box-shadow: 0 7px 14px rgba(239, 111, 60, 0.28);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 16px rgba(239, 111, 60, 0.3);
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border: 1px solid;
+    }
+
+    .status.ok {
+      color: var(--ok);
+      border-color: rgba(23, 159, 90, 0.24);
+      background: rgba(23, 159, 90, 0.08);
+    }
+
+    .status.warn {
+      color: var(--warn);
+      border-color: rgba(179, 91, 0, 0.25);
+      background: rgba(179, 91, 0, 0.08);
+    }
+
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @media (max-width: 680px) {
+      .wrap {
+        padding: 30px 14px 36px;
+      }
+
+      .card {
+        padding: 14px;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+  <div class="bg-shape shape-c"></div>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>项目主页面导航</h1>
+      <p class="subtitle">这里汇总了当前仓库中各文件夹可直接打开的页面入口，点击即可进入对应项目。</p>
+    </section>
+
+    <section class="grid" aria-label="页面入口列表">
+      <article class="card">
+        <h2 class="title">bubble</h2>
+        <p class="path">bubble/bubble-pop.html</p>
+        <div class="actions">
+          <a class="btn" href="./bubble/bubble-pop.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">cleancube</h2>
+        <p class="path">cleancube/index.html</p>
+        <div class="actions">
+          <a class="btn" href="./cleancube/index.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">cleancube_mobile</h2>
+        <p class="path">cleancube_mobile/index.html</p>
+        <div class="actions">
+          <a class="btn" href="./cleancube_mobile/index.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">Parkour</h2>
+        <p class="path">Parkour/index.html</p>
+        <div class="actions">
+          <a class="btn" href="./Parkour/index.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">rouge</h2>
+        <p class="path">rouge/index.html</p>
+        <div class="actions">
+          <a class="btn" href="./rouge/index.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">wackyfun/privacy</h2>
+        <p class="path">wackyfun/privacy/index.html</p>
+        <div class="actions">
+          <a class="btn" href="./wackyfun/privacy/index.html">进入页面</a>
+          <span class="status ok">已检测到入口</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 class="title">fireball</h2>
+        <p class="path">未发现 HTML 入口文件</p>
+        <div class="actions">
+          <span class="status warn">暂无可直接打开页面</span>
+        </div>
+      </article>
+    </section>
+
+    <p class="footer">更新时间: 2026-07-01</p>
+  </main>
+</body>
+</html>
