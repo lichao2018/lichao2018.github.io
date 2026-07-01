@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Neon Crush - 三消游戏</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=20260701-8" />
+</head>
+<body>
+  <main class="app">
+    <section class="hud card">
+      <h1>Neon Crush</h1>
+      <p class="subtitle">交换相邻宝石，连成3个及以上即可消除</p>
+      <div class="stats">
+        <div class="stat-item">
+          <span>得分</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="stat-item">
+          <span>连锁</span>
+          <strong id="combo">0</strong>
+        </div>
+        <div class="stat-item">
+          <span>有效步数</span>
+          <strong id="moves">0</strong>
+        </div>
+      </div>
+      <button id="restartBtn" class="btn">重新开始</button>
+    </section>
+
+    <section class="board-wrap card">
+      <p id="runtimeStatus" class="runtime-status">正在初始化游戏...</p>
+      <div id="board" class="board" aria-label="三消棋盘"></div>
+    </section>
+  </main>
+
+  <script>
+    window.onerror = function (msg, src, line, col) {
+      var el = document.getElementById("runtimeStatus");
+      if (el) {
+        el.textContent = "脚本错误: " + msg + " @" + line + ":" + col;
+      }
+      return false;
+    };
+  </script>
+  <script src="script.js?v=20260701-8" onerror="(function(){var el=document.getElementById('runtimeStatus');if(el){el.textContent='脚本加载失败：请检查网络或端口';}})();"></script>
+  <script>
+    setTimeout(function () {
+      if (!window.__MATCH3_BOOT_OK__) {
+        var el = document.getElementById("runtimeStatus");
+        if (el) {
+          el.textContent = "脚本不兼容：已切到兼容模式仍失败";
+        }
+      }
+    }, 1200);
+  </script>
+</body>
+</html>

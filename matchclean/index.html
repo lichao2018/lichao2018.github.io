@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Match Clean</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="panel">
+      <h1>Match Clean</h1>
+      <p class="rule">
+        Click empty cells only. If nearest blocks in up/down/left/right contain matching colors,
+        those matching blocks are removed and time is added.
+      </p>
+      <div class="stats">
+        <div class="stat">
+          <span class="label">Time</span>
+          <span id="timeText" class="value">45</span>
+        </div>
+        <div class="stat">
+          <span class="label">Blocks Left</span>
+          <span id="leftText" class="value">0</span>
+        </div>
+        <div class="stat">
+          <span class="label">Score</span>
+          <span id="scoreText" class="value">0</span>
+        </div>
+      </div>
+      <div id="message" class="message">Game running...</div>
+      <button id="restartBtn" type="button">Restart</button>
+      <ul class="tips">
+        <li>Clicking a non-empty cell costs time.</li>
+        <li>No matching nearest colors costs time.</li>
+        <li>Remove all blocks before timer reaches zero to win.</li>
+      </ul>
+    </section>
+
+    <section class="board-wrap">
+      <div id="board" class="board" aria-label="game board"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

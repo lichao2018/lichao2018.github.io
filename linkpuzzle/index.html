@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pet Link Puzzle</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1>Pet Link Puzzle</h1>
+      <p>Match identical pets with a path that has at most two turns.</p>
+    </header>
+
+    <section class="panel">
+      <div class="stats">
+        <span>Score: <strong id="score">0</strong></span>
+        <span>Moves: <strong id="moves">0</strong></span>
+        <span>Pairs Left: <strong id="pairs-left">0</strong></span>
+      </div>
+      <div class="actions">
+        <button id="new-game" type="button">New Game</button>
+        <button id="hint" type="button">Hint</button>
+        <button id="shuffle" type="button">Shuffle</button>
+      </div>
+    </section>
+
+    <section class="board-shell">
+      <div id="game-area" aria-label="Pet board">
+        <div id="board"></div>
+        <svg id="link-layer" aria-hidden="true"></svg>
+      </div>
+    </section>
+
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
