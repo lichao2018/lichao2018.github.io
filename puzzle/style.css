@@ -1,0 +1,129 @@
+:root {
+  --bg: radial-gradient(circle at 20% 20%, #fff9e9 0%, #f6efe0 45%, #ece7dc 100%);
+  --ink: #2f2a22;
+  --accent: #d25b2d;
+  --card: #fffdf8;
+  --border: #b8ac97;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+.app {
+  width: min(92vw, 640px);
+  margin: 0 auto;
+  padding: 20px 0 28px;
+}
+
+.topbar h1 {
+  margin: 0;
+  letter-spacing: 0.04em;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+  font-weight: 600;
+}
+
+.panel {
+  margin-top: 18px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 10px 26px rgba(66, 43, 16, 0.16);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  width: min(100%, 560px);
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.tile {
+  border: 1px solid #e5d6bd;
+  border-radius: 8px;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 300% 300%;
+  background-origin: border-box;
+  background-clip: border-box;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.tile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(53, 33, 16, 0.2);
+}
+
+.tile.empty {
+  border: 2px dashed #cfbea2;
+  background: linear-gradient(135deg, #f3e8d2, #f8f2e5);
+  cursor: default;
+  box-shadow: none;
+}
+
+.controls {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 8px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 1.5em;
+  margin: 14px 4px 0;
+  font-weight: 600;
+}
+
+@media (max-width: 540px) {
+  .app {
+    width: 100%;
+    padding: 12px 10px 20px;
+  }
+
+  .panel {
+    padding: 10px;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}
