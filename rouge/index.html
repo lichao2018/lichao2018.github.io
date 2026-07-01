@@ -28,41 +28,6 @@ canvas{display:block;width:100%;height:100%}
   display:flex;align-items:center;gap:4px;
 }
 .hud-item .icon{font-size:15px}
-#hero-select{
-  position:absolute;top:0;left:0;width:100%;height:100%;
-  background:linear-gradient(180deg,#0d0d2b,#1a1a3e);
-  display:flex;flex-direction:column;justify-content:center;align-items:center;
-  z-index:100;pointer-events:auto;
-}
-#hero-select h2{
-  color:#ffd700;font-size:24px;font-weight:900;margin-bottom:4px;
-  text-shadow:0 0 20px rgba(255,215,0,.5);
-}
-#hero-sub{color:#aaa;font-size:13px;margin-bottom:20px}
-#hero-cards{
-  display:flex;flex-direction:column;gap:12px;width:88%;max-width:360px;
-}
-.hero-card{
-  background:linear-gradient(135deg,#1a1a3e,#0d0d2b);
-  border:2px solid #2a2a5e;border-radius:16px;padding:16px;
-  cursor:pointer;transition:.2s;
-  display:flex;align-items:center;gap:14px;
-}
-.hero-card:hover,.hero-card:active{
-  transform:scale(1.03);
-}
-.hero-card.archer{border-color:#4ade80}
-.hero-card.archer:hover,.hero-card.archer:active{border-color:#22c55e;background:linear-gradient(135deg,#1a2e1e,#0d2b1a)}
-.hero-card.mage{border-color:#60a5fa}
-.hero-card.mage:hover,.hero-card.mage:active{border-color:#3b82f6;background:linear-gradient(135deg,#1a1a3e,#0d1a2b)}
-.hero-card.berserker{border-color:#f87171}
-.hero-card.berserker:hover,.hero-card.berserker:active{border-color:#ef4444;background:linear-gradient(135deg,#2e1a1a,#2b0d0d)}
-.hero-icon{font-size:48px;flex-shrink:0}
-.hero-info h3{color:#fff;font-size:16px;margin-bottom:3px}
-.hero-info .hero-class{color:#ffd700;font-size:11px;margin-bottom:4px}
-.hero-info .hero-stats{color:#aaa;font-size:11px;line-height:1.5}
-.hero-info .hero-unique{color:#fbbf24;font-size:11px;font-weight:700;margin-top:3px}
-.hero-info .hero-unique span{color:#fbbf24}
 #skill-panel{
   position:absolute;top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,.8);display:none;flex-direction:column;
@@ -90,10 +55,6 @@ canvas{display:block;width:100%;height:100%}
 .skill-info h4{color:#fff;font-size:14px;margin-bottom:2px}
 .skill-info p{color:#aaa;font-size:11px;line-height:1.4}
 .skill-lv{color:#ffd700;font-size:11px;margin-left:6px}
-.skill-unique-tag{
-  background:rgba(255,215,0,.15);color:#fbbf24;font-size:10px;
-  padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:700;
-}
 #game-over{
   position:absolute;top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,.85);display:none;flex-direction:column;
@@ -117,18 +78,11 @@ canvas{display:block;width:100%;height:100%}
   <canvas id="c"></canvas>
   <div id="ui">
     <div id="hud">
-      <div class="hud-item"><span class="icon" id="hero-hud-icon">🧝</span><span id="hero-hud-name">射手</span></div>
       <div class="hud-item"><span class="icon">❤️</span><span id="hp-txt">100</span></div>
       <div class="hud-item"><span class="icon">🌊</span><span id="wave-txt">1</span></div>
       <div class="hud-item"><span class="icon">💰</span><span id="gold-txt">0</span></div>
       <div class="hud-item"><span class="icon">💀</span><span id="kill-txt">0</span></div>
-      <div class="hud-item"><span class="icon" id="elem-icon">⭐</span><span id="elem-txt">无</span></div>
       <div class="hud-item" style="background:rgba(255,215,0,.15)"><span class="icon">🏷️</span><span id="ver-txt">v1.5.0</span></div>
-    </div>
-    <div id="hero-select">
-      <h2>⚔️ 选择英雄</h2>
-      <div id="hero-sub">选择你的英雄开始冒险</div>
-      <div id="hero-cards"></div>
     </div>
     <div id="skill-panel">
       <div id="skill-title">🔮 选择升级</div>
@@ -138,7 +92,6 @@ canvas{display:block;width:100%;height:100%}
     <div id="game-over">
       <h2>💀 游戏结束</h2>
       <div class="stats">
-        <div>英雄: <span class="stat-v" id="end-hero">射手</span></div>
         <div>生存波次: <span class="stat-v" id="end-wave">1</span></div>
         <div>击败敌人: <span class="stat-v" id="end-kill">0</span></div>
         <div>获得金币: <span class="stat-v" id="end-gold">0</span></div>
@@ -164,64 +117,7 @@ let G,PL,monsters,bullets,particles,golds,dmgNums,pets;
 let spawnTimer,attackTimer,gameLoop,skillGoldBase,nextSkillGold;
 let skillPanelShown=false,paused=false;
 let waveAnnounce=null,screenFlash=0,screenShake=0;
-let heroClass=null;
 const VERSION='v1.5.0';
-
-// ========== HERO CLASSES ==========
-const HEROES={
-  archer:{
-    key:'archer',emoji:'🧝',name:'射手',
-    cls:'archer',
-    desc:'远程攻击专家，高攻速高伤害',
-    hp:90,maxHp:90,atk:16,atkSpeed:1.2,spdMult:1,
-    passive:'+30% 攻击力基础加成',
-    uniqueSkill:'powerShot',
-    uniqueName:'精准射击',
-    uniqueDesc:'攻击力 +{n}%（射手专精）',
-    statTags:['攻击 ★★★★','攻速 ★★★☆','血量 ★★☆☆']
-  },
-  mage:{
-    key:'mage',emoji:'🧙‍♂️',name:'法师',
-    cls:'mage',
-    desc:'掌控元素之力，冻结敌人',
-    hp:80,maxHp:80,atk:14,atkSpeed:.9,spdMult:1,
-    passive:'子弹自带 10% 冰冻几率',
-    passiveFreeze:.1,
-    uniqueSkill:'iceNova',
-    uniqueName:'冰霜新星',
-    uniqueDesc:'冰冻几率 +{n}%（法师专精）',
-    statTags:['冰控 ★★★★★','攻击 ★★★☆','血量 ★★☆☆']
-  },
-  berserker:{
-    key:'berserker',emoji:'👹',name:'狂战士',
-    cls:'berserker',
-    desc:'暴怒之力，追求极致暴击',
-    hp:130,maxHp:130,atk:14,atkSpeed:.8,spdMult:1.15,
-    passive:'+15% 基础暴击率',
-    passiveCrit:.15,
-    uniqueSkill:'rageBlow',
-    uniqueName:'嗜血狂暴',
-    uniqueDesc:'暴击率 +{n}%，暴击伤害 +{n2}%',
-    statTags:['暴击 ★★★★★','血量 ★★★★☆','攻速 ★★☆☆']
-  }
-};
-
-// ========== ELEMENT SYSTEM ==========
-const ELEMENTS={
-  fire:{emoji:'🔥',name:'火',color:'#ef4444',bulletColor:'#ff6b35'},
-  ice:{emoji:'❄️',name:'冰',color:'#60a5fa',bulletColor:'#93c5fd'},
-  lightning:{emoji:'⚡',name:'雷',color:'#facc15',bulletColor:'#fde047'},
-  nature:{emoji:'🌿',name:'木',color:'#4ade80',bulletColor:'#86efac'}
-};
-const ELEM_ORDER=['fire','ice','lightning','nature'];
-const COUNTER={fire:'nature',nature:'lightning',lightning:'ice',ice:'fire'};
-
-function getElementBonus(atkElem,defElem){
-  if(!atkElem||!defElem)return 1;
-  if(COUNTER[atkElem]===defElem)return 1.5;
-  if(COUNTER[defElem]===atkElem)return 0.7;
-  return 1;
-}
 
 // ========== ENEMY TYPES ==========
 const MONSTERS={
@@ -261,42 +157,33 @@ const SKILLS={
   movespd:{name:"移速提升",emoji:"👟",desc:"移动速度 +{n}%",maxLv:4,base:1,apply(p){p.spdBonus+=.25}},
   gold:{name:"淘金术",emoji:"🪙",desc:"金币掉落 +{n}%",maxLv:4,base:1,apply(p){p.goldBonus+=.35}},
   regen:{name:"自然回复",emoji:"💚",desc:"每秒回复 {n}% HP",maxLv:3,base:1,apply(p){p.regen=(p.regen||0)+.01}},
-  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4}},
-  elemPower:{name:"元素强化",emoji:"🌟",desc:"元素克制伤害 +{n}%",maxLv:5,base:1,apply(p){p.elemPowerBonus+=.15}},
-  // Hero unique skills
-  powerShot:{name:"精准射击",emoji:"🏹",desc:"攻击力 +{n}%",maxLv:5,base:1,apply(p){p.dmgBonus+=.35},unique:true,hero:'archer'},
-  iceNova:{name:"冰霜新星",emoji:"❄️",desc:"冰冻几率 +{n}%",maxLv:5,base:1,apply(p){p.freezeChance+=.22},unique:true,hero:'mage'},
-  rageBlow:{name:"嗜血狂暴",emoji:"⚔️",desc:"暴击率 +{n}%，暴击伤害 +{n2}%",maxLv:5,base:1,apply(p){p.critChance+=.1;p.critDmg=(p.critDmg||3)+.3},unique:true,hero:'berserker'}
+  magnet:{name:"金币磁铁",emoji:"🧲",desc:"拾取范围 +{n}%",maxLv:4,base:1,apply(p){p.magnetRange+=.4}}
 };
 
 function getSkillLevel(p,key){return p.skills[key]||0}
 
-function initPlayer(hero){
-  let h=HEROES[hero];
+function initPlayer(){
   return{
     x:W/2,y:H-120,r:20,
-    hp:h.hp,maxHp:h.maxHp,atk:h.atk,atkSpeed:h.atkSpeed,atkRange:900,
-    multi:1,pierce:0,explosive:0,critChance:h.passiveCrit||0,critDmg:h.passiveCrit?3:2.5,
+    hp:100,maxHp:100,atk:15,atkSpeed:1,atkRange:900,
+    multi:1,pierce:0,explosive:0,critChance:0,critDmg:2.5,
     dmgBonus:1,atkSpdBonus:1,
-    magnetRange:1,poisonDot:0,freezeChance:h.passiveFreeze||0,vampire:0,chainChance:0,
-    maxHpBonus:1,spdBonus:h.spdMult,goldBonus:1,regen:0,gold:0,
-    knockback:0,summonCount:0,elemPowerBonus:0,
-    element:null,
+    magnetRange:1,poisonDot:0,freezeChance:0,vampire:0,chainChance:0,
+    maxHpBonus:1,spdBonus:1,goldBonus:1,regen:0,gold:0,
+    knockback:0,summonCount:0,
     skills:{},dragX:null,
-    hero:hero,heroEmoji:h.emoji,heroName:h.name,
     _freezeDebuff:0
   }
 }
 
 function initGame(){
-  PL=initPlayer(heroClass);monsters=[];bullets=[];particles=[];golds=[];
+  PL=initPlayer();monsters=[];bullets=[];particles=[];golds=[];
   dmgNums=[];pets=[];
   G={wave:1,kills:0,score:0,time:0,totalGold:0,waveSpawned:0,bossSpawned:false,bossCount:0};
   spawnTimer=0;attackTimer=0;skillGoldBase=30;nextSkillGold=skillGoldBase;
   skillPanelShown=false;paused=false;waveAnnounce={text:'第1波',timer:90};
   screenFlash=0;screenShake=0;
   R('skill-panel').style.display='none';R('game-over').style.display='none';
-  R('hero-select').style.display='none';
   updateHUD();
 }
 
@@ -305,50 +192,6 @@ function updateHUD(){
   R('wave-txt').textContent=G.wave;
   R('gold-txt').textContent=PL.gold;
   R('kill-txt').textContent=G.kills;
-  R('hero-hud-icon').textContent=PL.heroEmoji;
-  R('hero-hud-name').textContent=PL.heroName;
-  if(PL.element){
-    let el=ELEMENTS[PL.element];
-    R('elem-icon').textContent=el.emoji;
-    R('elem-txt').textContent=el.name;
-  }else{
-    R('elem-icon').textContent='⭐';
-    R('elem-txt').textContent='无';
-  }
-}
-
-// ========== HERO SELECTION ==========
-function showHeroSelect(){
-  let container=R('hero-cards');
-  container.innerHTML='';
-  for(let key of ['archer','mage','berserker']){
-    let h=HEROES[key];
-    let div=document.createElement('div');
-    div.className='hero-card '+h.cls;
-    div.innerHTML=`
-      <div class="hero-icon">${h.emoji}</div>
-      <div class="hero-info">
-        <h3>${h.name}</h3>
-        <div class="hero-class">${h.desc}</div>
-        <div class="hero-stats">
-          ${h.statTags.map(t=>'<div>'+t+'</div>').join('')}
-        </div>
-        <div class="hero-unique">
-          <span>专精:</span> ${h.uniqueEmoji||'💡'} ${h.uniqueName} · ${h.passive}
-        </div>
-      </div>`;
-    div.onclick=()=>{
-      heroClass=key;
-      startGame();
-    };
-    container.appendChild(div);
-  }
-}
-
-function startGame(){
-  initGame();
-  lastTs=0;
-  gameLoop=requestAnimationFrame(gameFrame);
 }
 
 // ========== GAME LOGIC ==========
@@ -544,7 +387,6 @@ function findNearestMonster(){
 function shoot(){
   let ang=-PI/2;
   let crit=Math.random()<PL.critChance;
-  let bulletColor=PL.element?ELEMENTS[PL.element].bulletColor:'#ffdd57';
   for(let i=0;i<PL.multi;i++){
     let spread=i===0?0:(i%2?1:-1)*Math.ceil(i/2)*.12;
     let a=ang+spread;
@@ -556,9 +398,9 @@ function shoot(){
       dmg:PL.atk*PL.dmgBonus*critMult,
       pierce:PL.pierce,hit:new Set(),explosive:PL.explosive,
       poison:PL.poisonDot,freeze:PL.freezeChance,
-      crit:isCrit,isPet:false,elem:PL.element,
+      crit:isCrit,isPet:false,
       cx:PL.x,cy:PL.y-10,
-      trail:[],bulletColor:bulletColor
+      trail:[]
     });
   }
 }
@@ -567,22 +409,9 @@ function hitMonster(bullet,monster,idx){
   if(bullet.hit.has(idx))return false;
   bullet.hit.add(idx);
 
-  let elemMult=1;
-  if(bullet.elem&&!bullet.isPet){
-    let base=getElementBonus(bullet.elem,monster.element);
-    elemMult=1+(base-1)*(1+PL.elemPowerBonus);
-  }
-  let dmg=Math.round(bullet.dmg*elemMult);
+  let dmg=Math.round(bullet.dmg);
   monster.hp-=dmg;monster.hitFlash=8;
   spawnDamageNum(monster.x,monster.y,dmg,bullet.crit);
-
-  if(elemMult>1.15){
-    let el=ELEMENTS[bullet.elem];
-    dmgNums.push({x:monster.x+rand(-15,15),y:monster.y-40,v:'克制!'+el.emoji,crit:false,life:0,elemText:true});
-    spawnParticles(monster.x,monster.y,3,el.color);
-  }else if(elemMult<.85){
-    dmgNums.push({x:monster.x+rand(-15,15),y:monster.y-40,v:'抵抗',crit:false,life:0,elemText:true});
-  }
 
   if(bullet.crit){
     screenFlash=5;screenShake=4;
@@ -594,7 +423,7 @@ function hitMonster(bullet,monster,idx){
     dmgNums.push({x:monster.x+rand(-5,5),y:monster.y-30,v:'暴击!',crit:true,life:0});
     spawnParticles(monster.x,monster.y,6,'#ffd700');
   }else{
-    spawnParticles(monster.x,monster.y,4,monster.element?ELEMENTS[monster.element].color:'#ff6b6b');
+    spawnParticles(monster.x,monster.y,4,'#ff6b6b');
   }
 
   if(PL.knockback>0&&!bullet.isPet){
@@ -676,32 +505,10 @@ function checkSkillPanel(){
 }
 
 function getRandomSkills(n=3){
-  let pool=Object.keys(SKILLS).filter(k=>{
-    if(getSkillLevel(PL,k)>=SKILLS[k].maxLv)return false;
-    if(SKILLS[k].unique&&SKILLS[k].hero!==PL.hero)return false;
-    return true;
-  });
-  if(pool.length===0)pool=Object.keys(SKILLS).filter(k=>!SKILLS[k].unique);
+  let pool=Object.keys(SKILLS).filter(k=>getSkillLevel(PL,k)<SKILLS[k].maxLv);
   if(pool.length===0)pool=Object.keys(SKILLS);
   let result=[];
-
-  // Always try to include hero unique skill if not maxed
-  let heroUniqueKey=null;
-  for(let k of Object.keys(SKILLS)){
-    if(SKILLS[k].unique&&SKILLS[k].hero===PL.hero&&getSkillLevel(PL,k)<SKILLS[k].maxLv){
-      heroUniqueKey=k;break;
-    }
-  }
-  if(heroUniqueKey&&!result.includes(heroUniqueKey)&&Math.random()<.6){
-    result.push(heroUniqueKey);
-  }
-
-  // If no element, force element choice on first level
-  if(!PL.element){
-    return result.length>=n?result.slice(0,n):result;
-  }
-
-  let remaining=n-result.length;
+  let remaining=n;
   for(let i=0;i<remaining;i++){
     let filtered=pool.filter(k=>!result.includes(k));
     if(filtered.length===0)break;
@@ -720,10 +527,6 @@ function calcSkillDesc(key,lv){
   if(key==='crit')return Math.round(lv*12)+'%';
   if(key==='knockback')return lv*5;
   if(key==='summon')return lv;
-  if(key==='elemPower')return Math.round(lv*15)+'%';
-  if(key==='powerShot')return Math.round(lv*35)+'%';
-  if(key==='iceNova')return Math.round(lv*22)+'%';
-  if(key==='rageBlow')return Math.round(lv*10)+'% / '+Math.round(lv*30)+'%';
   return s.base+lv;
 }
 
@@ -731,52 +534,16 @@ function showSkillPanel(){
   let panel=R('skill-panel'),cards=R('skill-cards');
   panel.style.display='flex';cards.innerHTML='';
 
-  // Element selection
-  if(!PL.element){
-    R('skill-title').textContent='🌟 选择主属性';
-    R('skill-sub').textContent='选择一个元素属性作为你的主属性（只能存在一个）';
-    let info=document.createElement('div');
-    info.style.cssText='color:#888;font-size:11px;margin-bottom:12px;text-align:center;line-height:1.6';
-    info.innerHTML='🔥火 克 🌿木 克 ⚡雷 克 ❄️冰 克 🔥火<br>克制对方 +50% 伤害，被克制 -30% 伤害';
-    cards.appendChild(info);
-
-    let elems=[...ELEM_ORDER].sort(()=>Math.random()-.5);
-    for(let ek of elems){
-      let el=ELEMENTS[ek];
-      let counterTo=ELEMENTS[COUNTER[ek]];
-      let weakTo=Object.entries(COUNTER).find(([k,v])=>v===ek);
-      let div=document.createElement('div');
-      div.className='skill-card';
-      div.style.borderColor=el.color;
-      div.innerHTML=`<div class="skill-icon">${el.emoji}</div><div class="skill-info"><h4 style="color:${el.color}">${el.name}属性</h4><p>克制 ${counterTo.emoji}${counterTo.name} · 被 ${ELEMENTS[weakTo[0]].emoji}${ELEMENTS[weakTo[0]].name} 克制<br>子弹变为${el.name}属性颜色</p></div>`;
-      div.onclick=()=>{
-        PL.element=ek;
-        PL.elemPowerBonus=0.15;
-        R('skill-panel').style.display='none';
-        skillPanelShown=false;paused=false;
-        updateHUD();
-      };
-      cards.appendChild(div);
-    }
-    return;
-  }
-
   R('skill-title').textContent='🔮 选择升级';
-  R('skill-sub').textContent=`${PL.heroEmoji} ${PL.heroName} · 选择一个技能提升实力`;
+  R('skill-sub').textContent='选择一个技能提升实力';
   let skills=getRandomSkills(3);
   for(let key of skills){
     let s=SKILLS[key],lv=getSkillLevel(PL,key)+1;
     let descStr=calcSkillDesc(key,lv);
-    let desc;
-    if(key==='rageBlow'){
-      desc=s.desc.replace('{n}',descStr.split(' / ')[0]).replace('{n2}',descStr.split(' / ')[1]);
-    }else{
-      desc=s.desc.replace('{n}',descStr);
-    }
+    let desc=s.desc.replace('{n}',descStr);
     let div=document.createElement('div');
     div.className='skill-card';
-    let uniqueTag=s.unique?'<span class="skill-unique-tag">专精</span>':'';
-    div.innerHTML=`<div class="skill-icon">${s.emoji}</div><div class="skill-info"><h4>${s.name}${uniqueTag}<span class="skill-lv">Lv.${lv}/${s.maxLv}</span></h4><p>${desc}</p></div>`;
+    div.innerHTML=`<div class="skill-icon">${s.emoji}</div><div class="skill-info"><h4>${s.name}<span class="skill-lv">Lv.${lv}/${s.maxLv}</span></h4><p>${desc}</p></div>`;
     div.onclick=()=>pickSkill(key);
     cards.appendChild(div);
   }
@@ -793,14 +560,13 @@ function pickSkill(key){
   if(PL.hp<PL.maxHp)PL.hp=Math.min(PL.maxHp,PL.hp+20);
   if(key==='summon')spawnPets(PL.summonCount);
   // Update maxHp after bonus changes
-  PL.maxHp=Math.round(HEROES[PL.hero].maxHp*PL.maxHpBonus);
+  PL.maxHp=Math.round(100*PL.maxHpBonus);
   updateHUD();
 }
 
 function gameOver(){
   paused=true;skillPanelShown=true;
   R('game-over').style.display='flex';
-  R('end-hero').textContent=PL.heroEmoji+' '+PL.heroName;
   R('end-wave').textContent=G.wave;R('end-kill').textContent=G.kills;R('end-gold').textContent=G.totalGold;
 }
 
@@ -851,8 +617,7 @@ function update(dt){
       particles.push({x:m.x,y:m.y,vx:0,vy:0,life:6,maxLife:6,color:'#fff'});
       if(m.life<=0||m.x<-30||m.x>W+30||m.y<-30||m.y>H+30){monsters.splice(i,1);continue}
       let pd=dist(m,PL);if(pd<PL.r+m.s){
-        let eMult=getElementBonus(m.element,PL.element);
-        let pdmg=Math.round(m.atk*eMult);
+        let pdmg=Math.round(m.atk);
         PL.hp-=pdmg;
         spawnDamageNum(PL.x,PL.y-20,pdmg,false);
         spawnParticles(PL.x,PL.y,8,'#e879f9');
@@ -938,8 +703,6 @@ function update(dt){
     }else{
       let dmg=Math.round(m.atk*dt);
       if(m.ability==='power')dmg=Math.round(dmg*1.5);
-      let eMult=getElementBonus(m.element,PL.element);
-      dmg=Math.round(dmg*eMult);
       PL.hp-=dmg;
       if(dmg>0)spawnDamageNum(PL.x,PL.y-20,dmg,false);
       spawnParticles(PL.x,PL.y,4,'#ff4444');
@@ -1018,7 +781,7 @@ function render(){
 
   // Bullets
   for(let b of bullets){
-    let col=b.crit?'#ffd700':b.isPet?'#60a5fa':b.bulletColor||'#ffdd57';
+    let col=b.crit?'#ffd700':b.isPet?'#60a5fa':'#ffdd57';
     let sz=b.crit?5:b.isPet?3:3.5;
     if(b.trail&&b.trail.length>1){
       for(let t=0;t<b.trail.length;t++){
@@ -1088,11 +851,6 @@ function render(){
           ctx.fillText(abilityLabel,0,-m.s-26);
         }
       }
-      if(m.element){
-        let el=ELEMENTS[m.element];
-        ctx.font='10px serif';
-        ctx.fillText(el.emoji,0,m.s+12);
-      }
       let icons=[];
       if(m.shootRange>0){
         icons.push('🎯');
@@ -1113,7 +871,7 @@ function render(){
       if(m.poisonSpit)icons.push('☠️');
       if(icons.length>0){
         ctx.font='10px serif';
-        ctx.fillText(icons.join(''),m.element?m.s+12:0,m.element?m.s+22:m.s+12);
+        ctx.fillText(icons.join(''),0,m.s+12);
       }
       if(m.poisonTimer>0){ctx.fillStyle='rgba(139,92,246,.6)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
       if(m.freezeTimer>0){ctx.fillStyle='rgba(147,197,253,.4)';ctx.beginPath();ctx.arc(0,0,m.s+3,0,PI*2);ctx.fill()}
@@ -1129,20 +887,9 @@ function render(){
       ctx.fillStyle='rgba(147,197,253,.25)';ctx.beginPath();ctx.arc(0,0,p.r+8,0,PI*2);ctx.fill();
     }
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,p.r*.7,p.r*.55,p.r*.15,0,0,PI*2);ctx.fill();
-    let playerGlow=p.element?ELEMENTS[p.element].color:'#60a5fa';
-    // Hero-specific glow color
-    if(PL.hero==='archer')playerGlow='#4ade80';
-    else if(PL.hero==='mage')playerGlow='#60a5fa';
-    else if(PL.hero==='berserker')playerGlow='#f87171';
-    ctx.shadowColor=playerGlow;ctx.shadowBlur=12;
+    ctx.shadowColor='#60a5fa';ctx.shadowBlur=12;
     ctx.font='36px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(p.heroEmoji,0,-2);ctx.restore();
-    if(p.element){
-      let el=ELEMENTS[p.element];
-      ctx.strokeStyle=el.color;ctx.lineWidth=1.5;ctx.globalAlpha=.3;
-      ctx.beginPath();ctx.arc(p.x,p.y,p.r+6,0,PI*2);ctx.stroke();
-      ctx.globalAlpha=1;
-    }
+    ctx.fillText('🧝',0,-2);ctx.restore();
     let bw=p.r*2,bh=5;
     ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(p.x-bw/2,p.y-p.r-bh-8,bw,bh);
     let hpR=p.hp/p.maxHp;
@@ -1197,17 +944,9 @@ function render(){
     ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(0,H-58,W,22);
     for(let i=0;i<skillKeys.length;i++){
       let key=skillKeys[i],sk=SKILLS[key];
-      ctx.fillStyle=sk.unique?'#fbbf24':'#fff';ctx.font='13px serif';
+      ctx.fillStyle='#fff';ctx.font='13px serif';
       ctx.fillText(sk.emoji+'Lv.'+PL.skills[key],10+i*60,H-42);
     }
-  }
-
-  // Element counter legend
-  if(PL.element){
-    let el=ELEMENTS[PL.element];
-    let counterEl=ELEMENTS[COUNTER[PL.element]];
-    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px sans-serif';ctx.textAlign='left';
-    ctx.fillText(el.emoji+'→'+counterEl.emoji+'克制',8,H-34);
   }
 
   // Version
@@ -1257,13 +996,15 @@ c.addEventListener('pointerup',e=>{
 R('restart-btn').addEventListener('click',()=>{
   cancelAnimationFrame(gameLoop);
   R('game-over').style.display='none';
-  R('hero-select').style.display='flex';
-  G=null;heroClass=null;
-  showHeroSelect();
+  initGame();
+  lastTs=0;
+  gameLoop=requestAnimationFrame(gameFrame);
 });
 
-// Start - show hero selection
-showHeroSelect();
+// Start game directly
+initGame();
+lastTs=0;
+gameLoop=requestAnimationFrame(gameFrame);
 </script>
 </body>
 </html>
