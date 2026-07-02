@@ -1,0 +1,269 @@
+:root {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #f3ead8;
+  background:
+    radial-gradient(circle at top, rgba(244, 167, 66, 0.2), transparent 28%),
+    linear-gradient(180deg, #140f1d 0%, #0b1220 46%, #06080d 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1 {
+  margin: 0;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.shell {
+  width: min(1200px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 40px;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 0.75rem;
+  color: #c4b38a;
+  margin-bottom: 10px;
+}
+
+.masthead h1 {
+  font-size: clamp(2.4rem, 6vw, 4.8rem);
+  line-height: 0.95;
+  color: #fff2cf;
+}
+
+.subtitle {
+  max-width: 62ch;
+  margin-top: 14px;
+  color: rgba(243, 234, 216, 0.82);
+  font-size: 1.05rem;
+}
+
+.legend {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  min-width: 240px;
+  border: 1px solid rgba(255, 226, 166, 0.16);
+  border-radius: 18px;
+  background: rgba(13, 18, 28, 0.65);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(10px);
+}
+
+.legend p {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 0.95rem;
+}
+
+.legend span {
+  color: #ffd27a;
+}
+
+.game-frame {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 223, 156, 0.18);
+  background: linear-gradient(180deg, rgba(13, 18, 28, 0.5), rgba(6, 8, 13, 0.82));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: transparent;
+}
+
+.overlay {
+  position: absolute;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(8, 11, 18, 0.72);
+  border: 1px solid rgba(255, 223, 156, 0.14);
+  min-width: 180px;
+  max-width: min(280px, 40vw);
+  backdrop-filter: blur(8px);
+}
+
+.top-left {
+  top: 18px;
+  left: 18px;
+}
+
+.top-right {
+  top: 18px;
+  right: 18px;
+}
+
+.top-center {
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  min-width: 220px;
+}
+
+.bottom-left {
+  bottom: 94px;
+  left: 18px;
+}
+
+.bottom-right {
+  bottom: 94px;
+  right: 18px;
+}
+
+.label {
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #b8a787;
+}
+
+.value {
+  color: #fff6dd;
+  font-size: 1rem;
+}
+
+.narrow {
+  line-height: 1.35;
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 36px));
+  padding: 14px 18px;
+  border-radius: 18px;
+  text-align: center;
+  color: #fff6dd;
+  background: rgba(92, 47, 24, 0.76);
+  border: 1px solid rgba(255, 216, 148, 0.18);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 900px) {
+  .shell {
+    width: min(100vw - 20px, 1200px);
+    padding-top: 18px;
+  }
+
+  .masthead {
+    grid-template-columns: 1fr;
+  }
+
+  .legend {
+    min-width: 0;
+  }
+
+  .overlay {
+    min-width: 0;
+    max-width: none;
+    width: calc(50% - 24px);
+    padding: 10px 12px;
+  }
+
+  .label {
+    font-size: 0.62rem;
+  }
+
+  .value {
+    font-size: 0.88rem;
+  }
+
+  .banner {
+    bottom: 12px;
+    padding: 12px 14px;
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    width: calc(100vw - 12px);
+  }
+
+  .game-frame {
+    border-radius: 20px;
+  }
+
+  .overlay {
+    position: static;
+    width: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    background: rgba(7, 9, 15, 0.9);
+  }
+
+  .game-frame {
+    display: grid;
+  }
+
+  .top-left,
+  .top-center,
+  .top-right,
+  .bottom-left,
+  .bottom-right {
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    transform: none;
+  }
+
+  #game {
+    order: -1;
+  }
+
+  .banner {
+    position: static;
+    transform: none;
+    width: 100%;
+    border-radius: 0 0 20px 20px;
+  }
+}

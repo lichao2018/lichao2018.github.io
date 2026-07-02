@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HTML Game SDK Demo</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: "Segoe UI", sans-serif;
+        background: linear-gradient(135deg, #ecf7ff 0%, #f8f4ec 100%);
+      }
+      .card {
+        max-width: 720px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+      button {
+        margin-right: 12px;
+        margin-bottom: 12px;
+        padding: 10px 14px;
+      }
+      pre {
+        background: #111;
+        color: #fff;
+        padding: 12px;
+        border-radius: 8px;
+        min-height: 150px;
+      }
+    </style>
+    <script>
+      // Mock Android bridge for browser demo only.
+      window.AndroidSDK = {
+        facebookLogin() {
+          return JSON.stringify({ accessToken: "replace_with_real_fb_token" });
+        },
+        showRewardedAd() {
+          alert("Mock rewarded ad");
+          return JSON.stringify({ ok: true });
+        },
+        showInterstitialAd() {
+          alert("Mock interstitial ad");
+          return JSON.stringify({ ok: true });
+        },
+        purchaseGoogleProduct(payloadJson) {
+          const payload = JSON.parse(payloadJson);
+          return JSON.stringify({
+            orderId: "GPA-MOCK-ORDER",
+            productId: payload.productId,
+            purchaseToken: "MOCK_PURCHASE_TOKEN",
+            packageName: "com.example.game001",
+          });
+        },
+      };
+    </script>
+    <script src="../client/webgame-sdk.js"></script>
+  </head>
+  <body>
+    <div class="card">
+      <h1>HTML Game SDK Demo</h1>
+      <p>Update server URL and real bridge before production use.</p>
+      <button id="loginBtn">FB Login</button>
+      <button id="rewardBtn">Reward Ad</button>
+      <button id="payBtn">Google Pay (coins_100)</button>
+      <pre id="log"></pre>
+    </div>
+
+    <script>
+      const sdk = new window.HtmlGameSdk({
+        gameId: "game_001",
+        serverBaseUrl: "http://localhost:8080",
+        platform: "android",
+        packageName: "com.example.game001",
+      });
+
+      const log = (value) => {
+        const el = document.getElementById("log");
+        el.textContent = JSON.stringify(value, null, 2);
+      };
+
+      document.getElementById("loginBtn").onclick = async () => {
+        try {
+          const res = await sdk.loginWithFacebook();
+          log(res);
+        } catch (e) {
+          log({ error: e.message });
+        }
+      };
+
+      document.getElementById("rewardBtn").onclick = async () => {
+        try {
+          const res = await sdk.showRewardedAd("main_menu");
+          log(res);
+        } catch (e) {
+          log({ error: e.message });
+        }
+      };
+
+      document.getElementById("payBtn").onclick = async () => {
+        try {
+          const res = await sdk.purchaseGoogleProduct("coins_100");
+          log(res);
+        } catch (e) {
+          log({ error: e.message });
+        }
+      };
+    </script>
+  </body>
+</html>
