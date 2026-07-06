@@ -124,9 +124,7 @@ const DEFAULT_GAME_CONFIG = {
 };
 
 const CONFIG_URL = './game-config.json';
-const CONFIG_STORAGE_KEY = 'bubble-pop-online-config-v1';
 let gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
-let sourceConfigText = JSON.stringify(DEFAULT_GAME_CONFIG, null, 2);
 
 function cloneConfig(config) {
   return JSON.parse(JSON.stringify(config));
@@ -145,54 +143,7 @@ async function loadExternalConfig() {
     throw new Error(`读取配置文件失败: ${response.status}`);
   }
   const text = await response.text();
-  sourceConfigText = text;
   return parseConfigText(text);
-}
-
-function loadSavedConfig() {
-  try {
-    const text = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (!text) return null;
-    return {
-      text,
-      config: parseConfigText(text),
-    };
-  } catch (err) {
-    console.warn('Failed to load saved config:', err);
-    return null;
-  }
-}
-
-function saveConfigText(text) {
-  try {
-    localStorage.setItem(CONFIG_STORAGE_KEY, text);
-  } catch (err) {
-    console.warn('Failed to save config:', err);
-  }
-}
-
-function clearSavedConfig() {
-  try {
-    localStorage.removeItem(CONFIG_STORAGE_KEY);
-  } catch (err) {
-    console.warn('Failed to clear saved config:', err);
-  }
-}
-
-function getConfigEditorText() {
-  return JSON.stringify(gameConfig, null, 2);
-}
-
-function setStatus(message, isError = false) {
-  const status = document.getElementById('config-status');
-  if (!status) return;
-  status.textContent = message;
-  status.style.color = isError ? '#ffb4a8' : '#9ae6b4';
-}
-
-function syncConfigEditor() {
-  const editor = document.getElementById('config-editor');
-  if (editor) editor.value = getConfigEditorText();
 }
 
 function resetToMenu() {
@@ -216,59 +167,44 @@ function resetToMenu() {
   updateUI();
 }
 
-function applyConfigText(text) {
+function applyConfigText(text, sourceName = 'local-file') {
   const parsed = parseConfigText(text);
   gameConfig = parsed;
-  saveConfigText(text);
-  syncConfigEditor();
   resetToMenu();
-  setStatus('配置已确认并保存，当前网页游戏立即使用这份配置。');
+  const loadedName = document.getElementById('loaded-config-name');
+  if (loadedName) loadedName.textContent = `当前配置: ${sourceName}`;
 }
 
-async function reloadConfigFromFile() {
-  const loaded = await loadExternalConfig();
-  gameConfig = loaded;
-  clearSavedConfig();
-  syncConfigEditor();
-  resetToMenu();
-  setStatus('已恢复服务器默认配置并清除网页内保存的配置。');
-}
+function setupLocalConfigLoader() {
+  const loadBtn = document.getElementById('load-config-btn');
+  const resetBtn = document.getElementById('reset-config-btn');
+  const input = document.getElementById('local-config-input');
+  if (!loadBtn || !input || !resetBtn) return;
 
-function setupConfigPanel() {
-  const toggle = document.getElementById('config-toggle');
-  const panel = document.getElementById('config-panel');
-  const editor = document.getElementById('config-editor');
-  const applyBtn = document.getElementById('config-apply');
-  const resetBtn = document.getElementById('config-reset');
-  const closeBtn = document.getElementById('config-close');
-  if (!toggle || !panel || !editor || !applyBtn || !resetBtn || !closeBtn) return;
-
-  syncConfigEditor();
-  setStatus('已读取当前生效配置。');
-
-  toggle.addEventListener('click', () => {
-    panel.classList.add('open');
-    setStatus('修改后点“确定并生效”，当前网页游戏会立刻使用并保存这份配置。');
-  });
-
-  closeBtn.addEventListener('click', () => {
-    panel.classList.remove('open');
+  loadBtn.addEventListener('click', () => {
+    input.value = '';
+    input.click();
   });
 
   resetBtn.addEventListener('click', async () => {
     try {
-      await reloadConfigFromFile();
+      const config = await loadExternalConfig();
+      applyConfigText(JSON.stringify(config), 'game-config.json');
     } catch (err) {
-      setStatus(`读取失败: ${err.message}`, true);
+      gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+      applyConfigText(JSON.stringify(gameConfig), 'DEFAULT_GAME_CONFIG');
+      alert(`读取默认配置失败，已回退内置默认配置: ${err.message}`);
     }
   });
 
-  applyBtn.addEventListener('click', () => {
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
     try {
-      applyConfigText(editor.value);
-      panel.classList.remove('open');
+      const text = await file.text();
+      applyConfigText(text, file.name);
     } catch (err) {
-      setStatus(`配置错误: ${err.message}`, true);
+      alert(`读取配置失败: ${err.message}`);
     }
   });
 }
@@ -1646,22 +1582,14 @@ canvas.addEventListener('touchcancel', () => {
 async function init() {
   try {
     gameConfig = await loadExternalConfig();
-    const saved = loadSavedConfig();
-    if (saved) {
-      gameConfig = saved.config;
-      sourceConfigText = saved.text;
-    }
+    applyConfigText(JSON.stringify(gameConfig), 'game-config.json');
   } catch (err) {
-    console.warn('Failed to load external game config:', err);
+    console.warn('Failed to load local config file, fallback to defaults:', err);
     gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+    applyConfigText(JSON.stringify(gameConfig), 'DEFAULT_GAME_CONFIG');
   }
-  setupConfigPanel();
-  levelConfig = getLevelConfig(1);
-  initGrid(levelConfig);
-  currentBubbleColor = getNextBubble(levelConfig.colors);
-  nextBubbleColor = getNextBubble(levelConfig.colors);
+  setupLocalConfigLoader();
   gameTime = 0;
-  updateUI();
   gameLoop(0);
 }
 

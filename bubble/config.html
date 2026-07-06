@@ -76,7 +76,7 @@ button, a.action-link {
 #apply-btn { background: linear-gradient(180deg, #2dbf70, #1e8b51); }
 #reload-btn { background: linear-gradient(180deg, #4f8cff, #3159c8); }
 #download-btn { background: linear-gradient(180deg, #ff9d5b, #d56d2e); }
-#clear-btn { background: linear-gradient(180deg, #ef6e77, #c94950); }
+#import-btn { background: linear-gradient(180deg, #18b7a6, #0b8b80); }
 #open-game { background: linear-gradient(180deg, #8767ff, #5a44d0); }
 #status {
   min-height: 22px;
@@ -114,6 +114,31 @@ textarea {
   color: #fff;
   margin-bottom: 6px;
 }
+.field-guide {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.field {
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.03);
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(235,245,255,0.8);
+}
+.field code {
+  color: #b9eeff;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+.field strong {
+  color: #fff;
+  display: block;
+  margin-bottom: 4px;
+}
 @media (max-width: 720px) {
   body { padding: 14px; }
   .hero h1 { font-size: 28px; }
@@ -126,42 +151,54 @@ textarea {
   <main class="main">
     <section class="hero">
       <h1>泡泡龙配置台</h1>
-      <p>这是给策划单独使用的配置页。这里改的是关卡 JSON 配置，不包含游戏画面。点“保存到当前浏览器”后，同域下的游戏页会立刻读到这份配置；如果要给 Android 包或正式服务器使用，仍然需要把导出的 JSON 覆盖到 game-config.json。</p>
+      <p>这是给策划单独使用的配置页。配置来源是本地 JSON 文件，不依赖服务器接口。你可以导入本地文件、编辑后再保存回本地文件，游戏页支持直接读取这份本地配置。</p>
       <div class="meta">
         <span>配置页：独立发布</span>
         <span>游戏页：只负责跑游戏</span>
-        <span>默认配置文件：game-config.json</span>
+        <span>默认文件：game-config.json</span>
       </div>
     </section>
 
     <section class="panel">
       <div class="toolbar">
-        <button id="apply-btn" type="button">保存到当前浏览器</button>
-        <button id="reload-btn" type="button">读取服务器默认配置</button>
+        <button id="apply-btn" type="button">保存为本地配置文件</button>
+        <button id="reload-btn" type="button">读取默认 game-config.json</button>
+        <button id="import-btn" type="button">导入本地配置文件</button>
         <button id="download-btn" type="button">下载 game-config.json</button>
-        <button id="clear-btn" type="button">清除浏览器覆盖配置</button>
         <a id="open-game" class="action-link" href="./bubble-pop.html" target="_blank" rel="noopener noreferrer">打开游戏页</a>
       </div>
+      <input id="import-input" type="file" accept="application/json,.json" hidden>
       <div id="status"></div>
       <textarea id="editor" spellcheck="false"></textarea>
       <div class="notes">
-        <div class="note"><strong>网页联调</strong>保存到当前浏览器后，同一浏览器里的游戏页刷新即可看到新配置。</div>
-        <div class="note"><strong>Android 发布</strong>Android 包不会自动读取这个配置台的浏览器存储，正式发包请使用下载出来的 JSON 替换包内的 game-config.json。</div>
-        <div class="note"><strong>回退</strong>点“读取服务器默认配置”或“清除浏览器覆盖配置”，都可以回到线上默认版本。</div>
+        <div class="note"><strong>网页联调</strong>配置页编辑后下载 JSON，在游戏页点“读取本地配置”即可验证。</div>
+        <div class="note"><strong>Android 发布</strong>把确认后的 JSON 文件放到包内并命名为 game-config.json。</div>
+        <div class="note"><strong>回退</strong>随时点“读取默认 game-config.json”回到项目默认配置。</div>
+      </div>
+      <div class="field-guide">
+        <div class="field"><strong><code>levels[].name</code></strong>关卡显示名。</div>
+        <div class="field"><strong><code>levels[].colors</code></strong>该关可出现颜色数，建议 3~7。</div>
+        <div class="field"><strong><code>levels[].pattern</code></strong>布局类型：<code>scattered</code>/<code>rows</code>/<code>triangle</code>/<code>diamond</code>/<code>ring</code>/<code>checkerboard</code>/<code>cross</code>/<code>vshape</code>。</div>
+        <div class="field"><strong><code>levels[].rows</code></strong>初始生成行数，建议 3~10。</div>
+        <div class="field"><strong><code>levels[].density</code></strong>散列密度，0~1；仅散列类布局影响明显。</div>
+        <div class="field"><strong><code>levels[].dropRate</code></strong>几次未消除后下压一次，值越小越难。</div>
+        <div class="field"><strong><code>levels[].targetScore</code></strong>过关奖励目标分。</div>
+        <div class="field"><strong><code>levels[].iceChance</code></strong>冰壳球概率，建议 0~0.3。</div>
+        <div class="field"><strong><code>levels[].vineChance</code></strong>藤蔓球概率，建议 0~0.3。</div>
+        <div class="field"><strong><code>endless.*</code></strong>无尽模式增长参数：颜色/行数/密度/下压频率/分数及冰藤概率的基准与步进。</div>
       </div>
     </section>
   </main>
 
 <script>
 const CONFIG_URL = './game-config.json';
-const CONFIG_STORAGE_KEY = 'bubble-pop-online-config-v1';
 const editor = document.getElementById('editor');
 const statusEl = document.getElementById('status');
 const applyBtn = document.getElementById('apply-btn');
 const reloadBtn = document.getElementById('reload-btn');
+const importBtn = document.getElementById('import-btn');
+const importInput = document.getElementById('import-input');
 const downloadBtn = document.getElementById('download-btn');
-const clearBtn = document.getElementById('clear-btn');
-let serverConfigText = '';
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -172,55 +209,65 @@ function formatJson(text) {
   return JSON.stringify(JSON.parse(text), null, 2);
 }
 
-async function fetchServerConfig() {
+async function fetchDefaultConfig() {
   const response = await fetch(`${CONFIG_URL}?t=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const text = await response.text();
-  serverConfigText = formatJson(text);
-  return serverConfigText;
-}
-
-function loadSavedConfig() {
-  const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
-  return saved ? formatJson(saved) : null;
+  return formatJson(text);
 }
 
 function saveConfig() {
   const pretty = formatJson(editor.value);
-  localStorage.setItem(CONFIG_STORAGE_KEY, pretty);
-  editor.value = pretty;
-  setStatus('已保存到当前浏览器。刷新游戏页后会使用这份配置。');
-}
 
-function clearSavedConfig() {
-  localStorage.removeItem(CONFIG_STORAGE_KEY);
-  setStatus('已清除浏览器覆盖配置。游戏页会回退到服务器默认配置。');
+  if (window.showSaveFilePicker) {
+    return window.showSaveFilePicker({
+      suggestedName: 'game-config.json',
+      types: [{
+        description: 'JSON',
+        accept: { 'application/json': ['.json'] }
+      }]
+    }).then(async handle => {
+      const writable = await handle.createWritable();
+      await writable.write(pretty + '\n');
+      await writable.close();
+      editor.value = pretty;
+      setStatus('已保存到本地文件。');
+    });
+  }
+
+  const blob = new Blob([pretty + '\n'], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'game-config.json';
+  link.click();
+  URL.revokeObjectURL(url);
+  editor.value = pretty;
+  setStatus('浏览器不支持直接写文件，已自动下载 game-config.json。');
 }
 
 async function loadInitial() {
   try {
-    const serverText = await fetchServerConfig();
-    const savedText = loadSavedConfig();
-    editor.value = savedText || serverText;
-    setStatus(savedText ? '已加载浏览器覆盖配置。' : '已加载服务器默认配置。');
+    editor.value = await fetchDefaultConfig();
+    setStatus('已加载本地默认配置文件。');
   } catch (err) {
-    editor.value = loadSavedConfig() || '';
+    editor.value = '';
     setStatus(`读取配置失败：${err.message}`, true);
   }
 }
 
-applyBtn.addEventListener('click', () => {
+applyBtn.addEventListener('click', async () => {
   try {
-    saveConfig();
+    await saveConfig();
   } catch (err) {
-    setStatus(`配置格式错误：${err.message}`, true);
+    setStatus(`保存失败：${err.message}`, true);
   }
 });
 
 reloadBtn.addEventListener('click', async () => {
   try {
-    editor.value = await fetchServerConfig();
-    setStatus('已重新读取服务器默认配置。');
+    editor.value = await fetchDefaultConfig();
+    setStatus('已重新读取本地默认配置文件。');
   } catch (err) {
     setStatus(`读取配置失败：${err.message}`, true);
   }
@@ -242,9 +289,21 @@ downloadBtn.addEventListener('click', () => {
   }
 });
 
-clearBtn.addEventListener('click', () => {
-  clearSavedConfig();
-  if (serverConfigText) editor.value = serverConfigText;
+importBtn.addEventListener('click', () => {
+  importInput.value = '';
+  importInput.click();
+});
+
+importInput.addEventListener('change', async () => {
+  const file = importInput.files && importInput.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    editor.value = formatJson(text);
+    setStatus(`已导入本地文件：${file.name}`);
+  } catch (err) {
+    setStatus(`导入失败：${err.message}`, true);
+  }
 });
 
 loadInitial();
