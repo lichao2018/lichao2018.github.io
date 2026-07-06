@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>泡泡龙配置台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255, 214, 102, 0.16), transparent 30%),
+    linear-gradient(180deg, #081226 0%, #0e2745 45%, #07111f 100%);
+  color: #f6fbff;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  padding: 24px;
+}
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+.hero, .panel {
+  background: rgba(6, 14, 29, 0.82);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.24);
+}
+.hero {
+  padding: 24px;
+}
+.hero h1 {
+  font-size: 34px;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+.hero p {
+  max-width: 780px;
+  color: rgba(240,247,255,0.76);
+  line-height: 1.7;
+  font-size: 14px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.meta span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+.panel {
+  padding: 18px;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+button, a.action-link {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+#apply-btn { background: linear-gradient(180deg, #2dbf70, #1e8b51); }
+#reload-btn { background: linear-gradient(180deg, #4f8cff, #3159c8); }
+#download-btn { background: linear-gradient(180deg, #ff9d5b, #d56d2e); }
+#clear-btn { background: linear-gradient(180deg, #ef6e77, #c94950); }
+#open-game { background: linear-gradient(180deg, #8767ff, #5a44d0); }
+#status {
+  min-height: 22px;
+  margin-bottom: 12px;
+  color: #9fe5b7;
+  font-size: 13px;
+}
+textarea {
+  width: 100%;
+  min-height: 540px;
+  resize: vertical;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255,255,255,0.05);
+  color: #dff6ff;
+  font: 13px/1.6 Consolas, "Courier New", monospace;
+}
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.note {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(240,247,255,0.78);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.note strong {
+  display: block;
+  color: #fff;
+  margin-bottom: 6px;
+}
+@media (max-width: 720px) {
+  body { padding: 14px; }
+  .hero h1 { font-size: 28px; }
+  textarea { min-height: 420px; }
+  button, a.action-link { width: 100%; text-align: center; }
+}
+</style>
+</head>
+<body>
+  <main class="main">
+    <section class="hero">
+      <h1>泡泡龙配置台</h1>
+      <p>这是给策划单独使用的配置页。这里改的是关卡 JSON 配置，不包含游戏画面。点“保存到当前浏览器”后，同域下的游戏页会立刻读到这份配置；如果要给 Android 包或正式服务器使用，仍然需要把导出的 JSON 覆盖到 game-config.json。</p>
+      <div class="meta">
+        <span>配置页：独立发布</span>
+        <span>游戏页：只负责跑游戏</span>
+        <span>默认配置文件：game-config.json</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <button id="apply-btn" type="button">保存到当前浏览器</button>
+        <button id="reload-btn" type="button">读取服务器默认配置</button>
+        <button id="download-btn" type="button">下载 game-config.json</button>
+        <button id="clear-btn" type="button">清除浏览器覆盖配置</button>
+        <a id="open-game" class="action-link" href="./bubble-pop.html" target="_blank" rel="noopener noreferrer">打开游戏页</a>
+      </div>
+      <div id="status"></div>
+      <textarea id="editor" spellcheck="false"></textarea>
+      <div class="notes">
+        <div class="note"><strong>网页联调</strong>保存到当前浏览器后，同一浏览器里的游戏页刷新即可看到新配置。</div>
+        <div class="note"><strong>Android 发布</strong>Android 包不会自动读取这个配置台的浏览器存储，正式发包请使用下载出来的 JSON 替换包内的 game-config.json。</div>
+        <div class="note"><strong>回退</strong>点“读取服务器默认配置”或“清除浏览器覆盖配置”，都可以回到线上默认版本。</div>
+      </div>
+    </section>
+  </main>
+
+<script>
+const CONFIG_URL = './game-config.json';
+const CONFIG_STORAGE_KEY = 'bubble-pop-online-config-v1';
+const editor = document.getElementById('editor');
+const statusEl = document.getElementById('status');
+const applyBtn = document.getElementById('apply-btn');
+const reloadBtn = document.getElementById('reload-btn');
+const downloadBtn = document.getElementById('download-btn');
+const clearBtn = document.getElementById('clear-btn');
+let serverConfigText = '';
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = isError ? '#ffb7b4' : '#9fe5b7';
+}
+
+function formatJson(text) {
+  return JSON.stringify(JSON.parse(text), null, 2);
+}
+
+async function fetchServerConfig() {
+  const response = await fetch(`${CONFIG_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const text = await response.text();
+  serverConfigText = formatJson(text);
+  return serverConfigText;
+}
+
+function loadSavedConfig() {
+  const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+  return saved ? formatJson(saved) : null;
+}
+
+function saveConfig() {
+  const pretty = formatJson(editor.value);
+  localStorage.setItem(CONFIG_STORAGE_KEY, pretty);
+  editor.value = pretty;
+  setStatus('已保存到当前浏览器。刷新游戏页后会使用这份配置。');
+}
+
+function clearSavedConfig() {
+  localStorage.removeItem(CONFIG_STORAGE_KEY);
+  setStatus('已清除浏览器覆盖配置。游戏页会回退到服务器默认配置。');
+}
+
+async function loadInitial() {
+  try {
+    const serverText = await fetchServerConfig();
+    const savedText = loadSavedConfig();
+    editor.value = savedText || serverText;
+    setStatus(savedText ? '已加载浏览器覆盖配置。' : '已加载服务器默认配置。');
+  } catch (err) {
+    editor.value = loadSavedConfig() || '';
+    setStatus(`读取配置失败：${err.message}`, true);
+  }
+}
+
+applyBtn.addEventListener('click', () => {
+  try {
+    saveConfig();
+  } catch (err) {
+    setStatus(`配置格式错误：${err.message}`, true);
+  }
+});
+
+reloadBtn.addEventListener('click', async () => {
+  try {
+    editor.value = await fetchServerConfig();
+    setStatus('已重新读取服务器默认配置。');
+  } catch (err) {
+    setStatus(`读取配置失败：${err.message}`, true);
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  try {
+    const pretty = formatJson(editor.value);
+    const blob = new Blob([pretty], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'game-config.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus('已导出 game-config.json，可交给 Android 包或服务器覆盖。');
+  } catch (err) {
+    setStatus(`导出失败：${err.message}`, true);
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  clearSavedConfig();
+  if (serverConfigText) editor.value = serverConfigText;
+});
+
+loadInitial();
+</script>
+</body>
+</html>

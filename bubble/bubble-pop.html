@@ -24,77 +24,6 @@ canvas {
   border-radius: 12px;
   box-shadow: 0 0 40px rgba(100,100,255,0.3);
 }
-#config-toggle {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 20;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(12, 18, 56, 0.92);
-  color: #fff;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.28);
-}
-#config-panel {
-  position: absolute;
-  inset: 56px 12px 12px 12px;
-  z-index: 25;
-  display: none;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(8, 12, 38, 0.96);
-  color: #fff;
-  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
-}
-#config-panel.open { display: flex; }
-#config-panel h2 {
-  font-size: 18px;
-  line-height: 1.2;
-}
-#config-panel p {
-  font-size: 12px;
-  line-height: 1.5;
-  color: rgba(255,255,255,0.75);
-}
-#config-editor {
-  flex: 1;
-  width: 100%;
-  min-height: 220px;
-  resize: none;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 10px;
-  padding: 12px;
-  background: rgba(255,255,255,0.06);
-  color: #dff6ff;
-  font: 12px/1.5 Consolas, 'Courier New', monospace;
-}
-#config-status {
-  min-height: 18px;
-  font-size: 12px;
-  color: #9ae6b4;
-}
-.config-actions {
-  display: flex;
-  gap: 8px;
-}
-.config-actions button {
-  flex: 1;
-  border: 0;
-  border-radius: 10px;
-  padding: 11px 12px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-}
-#config-apply { background: linear-gradient(180deg, #2fbf71, #208d54); }
-#config-reset { background: linear-gradient(180deg, #4d7cff, #3258c9); }
-#config-close { background: linear-gradient(180deg, #ff7b64, #da573f); }
 #ui-overlay {
   position: absolute; top: 0; left: 0; right: 0;
   pointer-events: none;
@@ -122,18 +51,6 @@ canvas {
     <div class="ui-box"><div class="label">分数</div><div class="value" id="ui-score">0</div></div>
     <div class="ui-box"><div class="label">连击</div><div class="value" id="ui-combo">0</div></div>
     <div class="ui-box"><div class="label">剩余</div><div class="value" id="ui-remain">0</div></div>
-  </div>
-  <button id="config-toggle" type="button">关卡配置</button>
-  <div id="config-panel">
-    <h2>网页关卡配置</h2>
-    <p>策划可以直接在这里修改 JSON，点“确定并生效”后，当前网页游戏会立刻使用并保存这份配置。点“恢复服务器默认配置”可回到线上默认值。</p>
-    <textarea id="config-editor" spellcheck="false"></textarea>
-    <div id="config-status"></div>
-    <div class="config-actions">
-      <button id="config-apply" type="button">确定并生效</button>
-      <button id="config-reset" type="button">恢复服务器默认配置</button>
-      <button id="config-close" type="button">关闭</button>
-    </div>
   </div>
 </div>
 
