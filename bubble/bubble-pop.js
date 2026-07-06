@@ -123,17 +123,12 @@ const DEFAULT_GAME_CONFIG = {
   },
 };
 
-const CONFIG_STORAGE_KEY = 'bubble-pop-config-v1';
-const CONFIG_SCRIPT_ID = 'game-config';
+const CONFIG_URL = './game-config.json';
 let gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+let sourceConfigText = JSON.stringify(DEFAULT_GAME_CONFIG, null, 2);
 
 function cloneConfig(config) {
   return JSON.parse(JSON.stringify(config));
-}
-
-function getEmbeddedConfigText() {
-  const el = document.getElementById(CONFIG_SCRIPT_ID);
-  return el ? el.textContent.trim() : '';
 }
 
 function parseConfigText(text) {
@@ -143,33 +138,18 @@ function parseConfigText(text) {
   return { levels, endless };
 }
 
-function getInitialConfig() {
-  const embeddedText = getEmbeddedConfigText();
-  let baseConfig = cloneConfig(DEFAULT_GAME_CONFIG);
-  if (embeddedText) {
-    try {
-      baseConfig = parseConfigText(embeddedText);
-    } catch (err) {
-      console.warn('Failed to parse embedded game config:', err);
-    }
+async function loadExternalConfig() {
+  const response = await fetch(`${CONFIG_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`读取配置文件失败: ${response.status}`);
   }
-
-  try {
-    const savedText = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (savedText) return parseConfigText(savedText);
-  } catch (err) {
-    console.warn('Failed to load saved game config:', err);
-  }
-
-  return baseConfig;
+  const text = await response.text();
+  sourceConfigText = text;
+  return parseConfigText(text);
 }
 
 function getConfigEditorText() {
   return JSON.stringify(gameConfig, null, 2);
-}
-
-function saveConfigText(text) {
-  localStorage.setItem(CONFIG_STORAGE_KEY, text);
 }
 
 function setStatus(message, isError = false) {
@@ -208,10 +188,17 @@ function resetToMenu() {
 function applyConfigText(text) {
   const parsed = parseConfigText(text);
   gameConfig = parsed;
-  saveConfigText(text);
   syncConfigEditor();
   resetToMenu();
-  setStatus('配置已应用，返回菜单等待重新开始。');
+  setStatus('本机预览配置已应用，刷新页面会重新读取 game-config.json。');
+}
+
+async function reloadConfigFromFile() {
+  const loaded = await loadExternalConfig();
+  gameConfig = loaded;
+  syncConfigEditor();
+  resetToMenu();
+  setStatus('已重新读取 game-config.json。');
 }
 
 function setupConfigPanel() {
@@ -224,20 +211,23 @@ function setupConfigPanel() {
   if (!toggle || !panel || !editor || !applyBtn || !resetBtn || !closeBtn) return;
 
   syncConfigEditor();
-  setStatus('已加载网页配置。');
+  setStatus('已读取独立配置文件 game-config.json。');
 
   toggle.addEventListener('click', () => {
     panel.classList.add('open');
-    setStatus('编辑 JSON 后点击“应用配置”。');
+    setStatus('策划正式配置请编辑 game-config.json；这里可做本机临时预览。');
   });
 
   closeBtn.addEventListener('click', () => {
     panel.classList.remove('open');
   });
 
-  resetBtn.addEventListener('click', () => {
-    syncConfigEditor();
-    setStatus('已恢复到当前网页已生效配置。');
+  resetBtn.addEventListener('click', async () => {
+    try {
+      await reloadConfigFromFile();
+    } catch (err) {
+      setStatus(`读取失败: ${err.message}`, true);
+    }
   });
 
   applyBtn.addEventListener('click', () => {
@@ -1620,8 +1610,13 @@ canvas.addEventListener('touchcancel', () => {
 }, { passive: false });
 
 // --- 初始化 ---
-function init() {
-  gameConfig = getInitialConfig();
+async function init() {
+  try {
+    gameConfig = await loadExternalConfig();
+  } catch (err) {
+    console.warn('Failed to load external game config:', err);
+    gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+  }
   setupConfigPanel();
   levelConfig = getLevelConfig(1);
   initGrid(levelConfig);

@@ -126,56 +126,16 @@ canvas {
   <button id="config-toggle" type="button">关卡配置</button>
   <div id="config-panel">
     <h2>网页关卡配置</h2>
-    <p>直接修改下面的 JSON，点“应用配置”后会重置到菜单并按新配置重新生成关卡。</p>
+    <p>策划配置已单独拆到 <strong>game-config.json</strong>。这里显示当前加载的配置，也可做本机临时预览；正式配置请直接编辑 JSON 文件并重新部署。</p>
     <textarea id="config-editor" spellcheck="false"></textarea>
     <div id="config-status"></div>
     <div class="config-actions">
-      <button id="config-apply" type="button">应用配置</button>
-      <button id="config-reset" type="button">恢复当前网页配置</button>
+      <button id="config-apply" type="button">本机预览配置</button>
+      <button id="config-reset" type="button">重新读取配置文件</button>
       <button id="config-close" type="button">关闭</button>
     </div>
   </div>
 </div>
-
-<script id="game-config" type="application/json">
-{
-  "levels": [
-    { "name": "第一关 · 初识泡泡", "colors": 3, "pattern": "scattered", "rows": 4, "density": 0.25, "dropRate": 8, "targetScore": 300, "iceChance": 0.06, "vineChance": 0.04 },
-    { "name": "第二关 · 渐入佳境", "colors": 3, "pattern": "scattered", "rows": 5, "density": 0.35, "dropRate": 7, "targetScore": 500, "iceChance": 0.07, "vineChance": 0.048 },
-    { "name": "第三关 · 小小挑战", "colors": 4, "pattern": "rows", "rows": 5, "density": 1.0, "dropRate": 6, "targetScore": 800, "iceChance": 0.08, "vineChance": 0.056 },
-    { "name": "第四关 · 三角阵列", "colors": 4, "pattern": "triangle", "rows": 6, "density": 1.0, "dropRate": 6, "targetScore": 1000, "iceChance": 0.09, "vineChance": 0.064 },
-    { "name": "第五关 · 钻石之心", "colors": 4, "pattern": "diamond", "rows": 7, "density": 1.0, "dropRate": 5, "targetScore": 1200, "iceChance": 0.1, "vineChance": 0.072 },
-    { "name": "第六关 · 环形包围", "colors": 5, "pattern": "ring", "rows": 7, "density": 1.0, "dropRate": 5, "targetScore": 1500, "iceChance": 0.11, "vineChance": 0.08 },
-    { "name": "第七关 · 棋盘迷局", "colors": 5, "pattern": "checkerboard", "rows": 6, "density": 1.0, "dropRate": 5, "targetScore": 1800, "iceChance": 0.12, "vineChance": 0.088 },
-    { "name": "第八关 · 十字星", "colors": 5, "pattern": "cross", "rows": 7, "density": 1.0, "dropRate": 4, "targetScore": 2000, "iceChance": 0.13, "vineChance": 0.096 },
-    { "name": "第九关 · 倒三角", "colors": 5, "pattern": "vshape", "rows": 8, "density": 1.0, "dropRate": 4, "targetScore": 2500, "iceChance": 0.14, "vineChance": 0.104 },
-    { "name": "第十关 · 终极挑战", "colors": 6, "pattern": "scattered", "rows": 8, "density": 0.7, "dropRate": 4, "targetScore": 3000, "iceChance": 0.14, "vineChance": 0.112 }
-  ],
-  "endless": {
-    "baseColors": 3,
-    "colorStepEvery": 2,
-    "maxColors": 7,
-    "baseRows": 4,
-    "rowStepEvery": 2,
-    "maxRows": 10,
-    "baseDensity": 0.3,
-    "densityStep": 0.04,
-    "maxDensity": 0.9,
-    "baseDropRate": 6,
-    "dropStepEvery": 5,
-    "minDropRate": 3,
-    "baseTargetScore": 1000,
-    "targetScorePerLevel": 500,
-    "patterns": ["scattered", "rows", "triangle", "checkerboard", "ring", "cross", "vshape", "diamond"],
-    "iceChanceBase": 0.06,
-    "iceChanceStep": 0.01,
-    "iceChanceMax": 0.14,
-    "vineChanceBase": 0.04,
-    "vineChanceStep": 0.008,
-    "vineChanceMax": 0.12
-  }
-}
-</script>
 
 <script src="bubble-pop.js"></script>
 </body>
