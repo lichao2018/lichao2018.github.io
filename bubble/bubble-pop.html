@@ -126,12 +126,12 @@ canvas {
   <button id="config-toggle" type="button">关卡配置</button>
   <div id="config-panel">
     <h2>网页关卡配置</h2>
-    <p>策划配置已单独拆到 <strong>game-config.json</strong>。这里显示当前加载的配置，也可做本机临时预览；正式配置请直接编辑 JSON 文件并重新部署。</p>
+    <p>策划可以直接在这里修改 JSON，点“确定并生效”后，当前网页游戏会立刻使用并保存这份配置。点“恢复服务器默认配置”可回到线上默认值。</p>
     <textarea id="config-editor" spellcheck="false"></textarea>
     <div id="config-status"></div>
     <div class="config-actions">
-      <button id="config-apply" type="button">本机预览配置</button>
-      <button id="config-reset" type="button">重新读取配置文件</button>
+      <button id="config-apply" type="button">确定并生效</button>
+      <button id="config-reset" type="button">恢复服务器默认配置</button>
       <button id="config-close" type="button">关闭</button>
     </div>
   </div>

@@ -124,6 +124,7 @@ const DEFAULT_GAME_CONFIG = {
 };
 
 const CONFIG_URL = './game-config.json';
+const CONFIG_STORAGE_KEY = 'bubble-pop-online-config-v1';
 let gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
 let sourceConfigText = JSON.stringify(DEFAULT_GAME_CONFIG, null, 2);
 
@@ -146,6 +147,36 @@ async function loadExternalConfig() {
   const text = await response.text();
   sourceConfigText = text;
   return parseConfigText(text);
+}
+
+function loadSavedConfig() {
+  try {
+    const text = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (!text) return null;
+    return {
+      text,
+      config: parseConfigText(text),
+    };
+  } catch (err) {
+    console.warn('Failed to load saved config:', err);
+    return null;
+  }
+}
+
+function saveConfigText(text) {
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, text);
+  } catch (err) {
+    console.warn('Failed to save config:', err);
+  }
+}
+
+function clearSavedConfig() {
+  try {
+    localStorage.removeItem(CONFIG_STORAGE_KEY);
+  } catch (err) {
+    console.warn('Failed to clear saved config:', err);
+  }
 }
 
 function getConfigEditorText() {
@@ -188,17 +219,19 @@ function resetToMenu() {
 function applyConfigText(text) {
   const parsed = parseConfigText(text);
   gameConfig = parsed;
+  saveConfigText(text);
   syncConfigEditor();
   resetToMenu();
-  setStatus('本机预览配置已应用，刷新页面会重新读取 game-config.json。');
+  setStatus('配置已确认并保存，当前网页游戏立即使用这份配置。');
 }
 
 async function reloadConfigFromFile() {
   const loaded = await loadExternalConfig();
   gameConfig = loaded;
+  clearSavedConfig();
   syncConfigEditor();
   resetToMenu();
-  setStatus('已重新读取 game-config.json。');
+  setStatus('已恢复服务器默认配置并清除网页内保存的配置。');
 }
 
 function setupConfigPanel() {
@@ -211,11 +244,11 @@ function setupConfigPanel() {
   if (!toggle || !panel || !editor || !applyBtn || !resetBtn || !closeBtn) return;
 
   syncConfigEditor();
-  setStatus('已读取独立配置文件 game-config.json。');
+  setStatus('已读取当前生效配置。');
 
   toggle.addEventListener('click', () => {
     panel.classList.add('open');
-    setStatus('策划正式配置请编辑 game-config.json；这里可做本机临时预览。');
+    setStatus('修改后点“确定并生效”，当前网页游戏会立刻使用并保存这份配置。');
   });
 
   closeBtn.addEventListener('click', () => {
@@ -1613,6 +1646,11 @@ canvas.addEventListener('touchcancel', () => {
 async function init() {
   try {
     gameConfig = await loadExternalConfig();
+    const saved = loadSavedConfig();
+    if (saved) {
+      gameConfig = saved.config;
+      sourceConfigText = saved.text;
+    }
   } catch (err) {
     console.warn('Failed to load external game config:', err);
     gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
