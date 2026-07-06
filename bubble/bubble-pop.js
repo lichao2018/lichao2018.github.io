@@ -96,34 +96,195 @@ function sfxCombo() { playSound(600, 0.1, 'square', 0.06); }
 
 // --- 关卡数据 ---
 // pattern: 'scattered' | 'rows' | 'triangle' | 'diamond' | 'ring' | 'checkerboard' | 'cross' | 'vshape'
-const LEVELS = [
-  { name: '第一关 · 初识泡泡', colors: 3, pattern: 'scattered', rows: 4, density: 0.25, dropRate: 8, targetScore: 300 },
-  { name: '第二关 · 渐入佳境', colors: 3, pattern: 'scattered', rows: 5, density: 0.35, dropRate: 7, targetScore: 500 },
-  { name: '第三关 · 小小挑战', colors: 4, pattern: 'rows', rows: 5, density: 1.0, dropRate: 6, targetScore: 800 },
-  { name: '第四关 · 三角阵列', colors: 4, pattern: 'triangle', rows: 6, density: 1.0, dropRate: 6, targetScore: 1000 },
-  { name: '第五关 · 钻石之心', colors: 4, pattern: 'diamond', rows: 7, density: 1.0, dropRate: 5, targetScore: 1200 },
-  { name: '第六关 · 环形包围', colors: 5, pattern: 'ring', rows: 7, density: 1.0, dropRate: 5, targetScore: 1500 },
-  { name: '第七关 · 棋盘迷局', colors: 5, pattern: 'checkerboard', rows: 6, density: 1.0, dropRate: 5, targetScore: 1800 },
-  { name: '第八关 · 十字星', colors: 5, pattern: 'cross', rows: 7, density: 1.0, dropRate: 4, targetScore: 2000 },
-  { name: '第九关 · 倒三角', colors: 5, pattern: 'vshape', rows: 8, density: 1.0, dropRate: 4, targetScore: 2500 },
-  { name: '第十关 · 终极挑战', colors: 6, pattern: 'scattered', rows: 8, density: 0.7, dropRate: 4, targetScore: 3000 },
-];
+const DEFAULT_GAME_CONFIG = {
+  levels: [],
+  endless: {
+    baseColors: 3,
+    colorStepEvery: 2,
+    maxColors: 7,
+    baseRows: 4,
+    rowStepEvery: 2,
+    maxRows: 10,
+    baseDensity: 0.3,
+    densityStep: 0.04,
+    maxDensity: 0.9,
+    baseDropRate: 6,
+    dropStepEvery: 5,
+    minDropRate: 3,
+    baseTargetScore: 1000,
+    targetScorePerLevel: 500,
+    patterns: ['scattered','rows','triangle','checkerboard','ring','cross','vshape','diamond'],
+    iceChanceBase: 0.06,
+    iceChanceStep: 0.01,
+    iceChanceMax: 0.14,
+    vineChanceBase: 0.04,
+    vineChanceStep: 0.008,
+    vineChanceMax: 0.12,
+  },
+};
+
+const CONFIG_STORAGE_KEY = 'bubble-pop-config-v1';
+const CONFIG_SCRIPT_ID = 'game-config';
+let gameConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+
+function cloneConfig(config) {
+  return JSON.parse(JSON.stringify(config));
+}
+
+function getEmbeddedConfigText() {
+  const el = document.getElementById(CONFIG_SCRIPT_ID);
+  return el ? el.textContent.trim() : '';
+}
+
+function parseConfigText(text) {
+  const parsed = JSON.parse(text);
+  const levels = Array.isArray(parsed.levels) ? parsed.levels : [];
+  const endless = { ...DEFAULT_GAME_CONFIG.endless, ...(parsed.endless || {}) };
+  return { levels, endless };
+}
+
+function getInitialConfig() {
+  const embeddedText = getEmbeddedConfigText();
+  let baseConfig = cloneConfig(DEFAULT_GAME_CONFIG);
+  if (embeddedText) {
+    try {
+      baseConfig = parseConfigText(embeddedText);
+    } catch (err) {
+      console.warn('Failed to parse embedded game config:', err);
+    }
+  }
+
+  try {
+    const savedText = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (savedText) return parseConfigText(savedText);
+  } catch (err) {
+    console.warn('Failed to load saved game config:', err);
+  }
+
+  return baseConfig;
+}
+
+function getConfigEditorText() {
+  return JSON.stringify(gameConfig, null, 2);
+}
+
+function saveConfigText(text) {
+  localStorage.setItem(CONFIG_STORAGE_KEY, text);
+}
+
+function setStatus(message, isError = false) {
+  const status = document.getElementById('config-status');
+  if (!status) return;
+  status.textContent = message;
+  status.style.color = isError ? '#ffb4a8' : '#9ae6b4';
+}
+
+function syncConfigEditor() {
+  const editor = document.getElementById('config-editor');
+  if (editor) editor.value = getConfigEditorText();
+}
+
+function resetToMenu() {
+  score = 0;
+  totalScore = 0;
+  combo = 0;
+  comboTimer = 0;
+  flyingBubbles = [];
+  particles = [];
+  fallingBubbles = [];
+  shakeAmount = 0;
+  flashAlpha = 0;
+  gameTime = 0;
+  isProcessing = false;
+  currentLevel = 1;
+  levelConfig = getLevelConfig(1);
+  initGrid(levelConfig);
+  currentBubbleColor = getNextBubble(levelConfig.colors);
+  nextBubbleColor = getNextBubble(levelConfig.colors);
+  gameState = State.MENU;
+  updateUI();
+}
+
+function applyConfigText(text) {
+  const parsed = parseConfigText(text);
+  gameConfig = parsed;
+  saveConfigText(text);
+  syncConfigEditor();
+  resetToMenu();
+  setStatus('配置已应用，返回菜单等待重新开始。');
+}
+
+function setupConfigPanel() {
+  const toggle = document.getElementById('config-toggle');
+  const panel = document.getElementById('config-panel');
+  const editor = document.getElementById('config-editor');
+  const applyBtn = document.getElementById('config-apply');
+  const resetBtn = document.getElementById('config-reset');
+  const closeBtn = document.getElementById('config-close');
+  if (!toggle || !panel || !editor || !applyBtn || !resetBtn || !closeBtn) return;
+
+  syncConfigEditor();
+  setStatus('已加载网页配置。');
+
+  toggle.addEventListener('click', () => {
+    panel.classList.add('open');
+    setStatus('编辑 JSON 后点击“应用配置”。');
+  });
+
+  closeBtn.addEventListener('click', () => {
+    panel.classList.remove('open');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    syncConfigEditor();
+    setStatus('已恢复到当前网页已生效配置。');
+  });
+
+  applyBtn.addEventListener('click', () => {
+    try {
+      applyConfigText(editor.value);
+      panel.classList.remove('open');
+    } catch (err) {
+      setStatus(`配置错误: ${err.message}`, true);
+    }
+  });
+}
 
 function getLevelConfig(levelNum) {
-  if (levelNum <= LEVELS.length) {
-    return LEVELS[levelNum - 1];
+  const levels = gameConfig.levels || [];
+  if (levelNum <= levels.length) {
+    return levels[levelNum - 1];
   }
-  // 10关以后自动生成
-  const colors = Math.min(3 + Math.floor((levelNum + 1) / 2), 7);
-  const rows = Math.min(4 + Math.floor(levelNum / 2), 10);
-  const density = 0.3 + (levelNum - 10) * 0.04;
-  const patterns = ['scattered','rows','triangle','checkerboard','ring','cross','vshape','diamond'];
+  const endless = gameConfig.endless || DEFAULT_GAME_CONFIG.endless;
+  const colors = Math.min(
+    endless.baseColors + Math.floor((levelNum + 1) / endless.colorStepEvery),
+    endless.maxColors
+  );
+  const rows = Math.min(
+    endless.baseRows + Math.floor(levelNum / endless.rowStepEvery),
+    endless.maxRows
+  );
+  const density = endless.baseDensity + (levelNum - 10) * endless.densityStep;
+  const patterns = endless.patterns || DEFAULT_GAME_CONFIG.endless.patterns;
   const pattern = patterns[(levelNum - 11) % patterns.length];
+  const iceChance = Math.min(
+    endless.iceChanceBase + Math.max(0, levelNum - 1) * endless.iceChanceStep,
+    endless.iceChanceMax
+  );
+  const vineChance = Math.min(
+    endless.vineChanceBase + Math.max(0, levelNum - 1) * endless.vineChanceStep,
+    endless.vineChanceMax
+  );
   return {
     name: `第${levelNum}关 · 无尽挑战`,
-    colors, pattern, rows, density: Math.min(density, 0.9),
-    dropRate: Math.max(3, 6 - Math.floor(levelNum / 5)),
-    targetScore: 1000 + levelNum * 500,
+    colors,
+    pattern,
+    rows,
+    density: Math.min(density, endless.maxDensity),
+    dropRate: Math.max(endless.minDropRate, endless.baseDropRate - Math.floor(levelNum / endless.dropStepEvery)),
+    targetScore: endless.baseTargetScore + levelNum * endless.targetScorePerLevel,
+    iceChance,
+    vineChance,
   };
 }
 
@@ -177,15 +338,13 @@ function cloneBubble(cell) {
 
 function createLevelBubble(color, row) {
   let layer = null;
-  if (currentLevel >= 3) {
-    const iceChance = Math.min(0.06 + Math.max(0, currentLevel - 3) * 0.01, 0.14);
-    const vineChance = Math.min(0.05 + Math.max(0, currentLevel - 4) * 0.008, 0.12);
-    const roll = Math.random();
-    if (roll < iceChance) {
-      layer = BubbleLayer.ICE;
-    } else if (roll < iceChance + vineChance && row > 0) {
-      layer = BubbleLayer.VINE;
-    }
+  const iceChance = levelConfig?.iceChance || 0;
+  const vineChance = levelConfig?.vineChance || 0;
+  const roll = Math.random();
+  if (roll < iceChance) {
+    layer = BubbleLayer.ICE;
+  } else if (roll < iceChance + vineChance && row > 0) {
+    layer = BubbleLayer.VINE;
   }
   return makeBubble(color, layer);
 }
@@ -1462,6 +1621,8 @@ canvas.addEventListener('touchcancel', () => {
 
 // --- 初始化 ---
 function init() {
+  gameConfig = getInitialConfig();
+  setupConfigPanel();
   levelConfig = getLevelConfig(1);
   initGrid(levelConfig);
   currentBubbleColor = getNextBubble(levelConfig.colors);
