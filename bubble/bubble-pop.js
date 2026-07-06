@@ -138,7 +138,7 @@ let combo = 0;
 let comboTimer = 0; // 连击计时（60fps 标准帧）
 const COMBO_WINDOW = 150; // 约 2.5 秒连击窗口
 let shotsSinceDrop = 0;
-let grid = [];           // grid[row][col] = colorIndex or -1
+let grid = [];           // grid[row][col] = null | { color, layer }
 let flyingBubbles = [];  // 同时飞行的泡泡队列
 let aimAngle = -Math.PI / 2;
 let particles = [];
@@ -153,6 +153,58 @@ let touchAiming = false;
 let gameTime = 0;
 let flashAlpha = 0;
 let isProcessing = false; // 消除动画期间锁定射击
+
+const BubbleLayer = {
+  ICE: 'ice',
+  VINE: 'vine',
+};
+
+function makeBubble(color, layer = null) {
+  return { color, layer };
+}
+
+function isOccupied(cell) {
+  return !!cell && typeof cell.color === 'number' && cell.color >= 0;
+}
+
+function getBubbleColor(cell) {
+  return isOccupied(cell) ? cell.color : -1;
+}
+
+function cloneBubble(cell) {
+  return isOccupied(cell) ? makeBubble(cell.color, cell.layer || null) : null;
+}
+
+function createLevelBubble(color, row) {
+  let layer = null;
+  if (currentLevel >= 3) {
+    const iceChance = Math.min(0.06 + Math.max(0, currentLevel - 3) * 0.01, 0.14);
+    const vineChance = Math.min(0.05 + Math.max(0, currentLevel - 4) * 0.008, 0.12);
+    const roll = Math.random();
+    if (roll < iceChance) {
+      layer = BubbleLayer.ICE;
+    } else if (roll < iceChance + vineChance && row > 0) {
+      layer = BubbleLayer.VINE;
+    }
+  }
+  return makeBubble(color, layer);
+}
+
+function getLayerBreakColor(layer, bubbleColor) {
+  if (layer === BubbleLayer.ICE) return 'rgba(180, 235, 255, 0.95)';
+  if (layer === BubbleLayer.VINE) return 'rgba(120, 200, 90, 0.95)';
+  return BUBBLE_COLORS[bubbleColor] || '#ffffff';
+}
+
+function breakBubbleLayer(row, col) {
+  const cell = grid[row][col];
+  if (!isOccupied(cell) || !cell.layer) return false;
+  const pos = gridToXY(row, col);
+  const layer = cell.layer;
+  grid[row][col] = makeBubble(cell.color, null);
+  spawnParticles(pos.x, pos.y, getLayerBreakColor(layer, cell.color), layer === BubbleLayer.ICE ? 10 : 8);
+  return true;
+}
 
 // --- 网格 ---
 function colCount(row) {
@@ -174,7 +226,7 @@ function xyToGrid(x, y) {
   for (let r = 0; r < GRID_ROWS; r++) {
     const cols = colCount(r);
     for (let c = 0; c < cols; c++) {
-      if (grid[r] && grid[r][c] >= 0) continue; // 已被占用
+      if (grid[r] && isOccupied(grid[r][c])) continue; // 已被占用
       const pos = gridToXY(r, c);
       const dx = x - pos.x, dy = y - pos.y;
       const dist = dx * dx + dy * dy;
@@ -194,7 +246,7 @@ function initGrid(levelConfig) {
     grid[r] = [];
     const cols = colCount(r);
     for (let c = 0; c < cols; c++) {
-      grid[r][c] = -1;
+      grid[r][c] = null;
     }
   }
   bubbleCount = 0;
@@ -236,7 +288,7 @@ function initGrid(levelConfig) {
           place = Math.random() < density;
       }
       if (place) {
-        grid[r][c] = Math.floor(Math.random() * colors);
+        grid[r][c] = createLevelBubble(Math.floor(Math.random() * colors), r);
         bubbleCount++;
       }
     }
@@ -247,7 +299,7 @@ function initGrid(levelConfig) {
     for (let r = 0; r < Math.min(3, rows); r++) {
       const cols = colCount(r);
       const mid = Math.floor(cols / 2);
-      if (grid[r][mid] < 0) { grid[r][mid] = Math.floor(Math.random() * colors); bubbleCount++; }
+      if (!isOccupied(grid[r][mid])) { grid[r][mid] = createLevelBubble(Math.floor(Math.random() * colors), r); bubbleCount++; }
     }
   }
 
@@ -265,7 +317,7 @@ function removeInitialFloating() {
   const connected = new Set();
   const queue = [];
   for (let c = 0; c < colCount(0); c++) {
-    if (grid[0][c] >= 0) {
+    if (isOccupied(grid[0][c])) {
       connected.add(`0,${c}`);
       queue.push({ row: 0, col: c });
     }
@@ -274,7 +326,7 @@ function removeInitialFloating() {
     const { row, col } = queue.shift();
     for (const nb of getNeighbors(row, col)) {
       const key = `${nb.row},${nb.col}`;
-      if (!connected.has(key) && grid[nb.row][nb.col] >= 0) {
+      if (!connected.has(key) && isOccupied(grid[nb.row][nb.col])) {
         connected.add(key);
         queue.push(nb);
       }
@@ -285,10 +337,10 @@ function removeInitialFloating() {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0 && !connected.has(`${r},${c}`)) {
-        grid[r][c] = -1;
+      if (isOccupied(grid[r][c]) && !connected.has(`${r},${c}`)) {
+        grid[r][c] = null;
       }
-      if (grid[r][c] >= 0) count++;
+      if (isOccupied(grid[r][c])) count++;
     }
   }
   bubbleCount = count;
@@ -301,7 +353,7 @@ function growConnectedCluster(colors, maxRows) {
   const filled = new Set();
   const cols = colCount(0);
   const mid = Math.floor(cols / 2);
-  grid[0][mid] = Math.floor(Math.random() * colors);
+  grid[0][mid] = createLevelBubble(Math.floor(Math.random() * colors), 0);
   filled.add(`0,${mid}`);
   queue.push({ row: 0, col: mid });
 
@@ -311,10 +363,10 @@ function growConnectedCluster(colors, maxRows) {
       if (nb.row >= maxRows || nb.row < 0) continue;
       const key = `${nb.row},${nb.col}`;
       if (filled.has(key)) continue;
-      if (grid[nb.row][nb.col] >= 0) { filled.add(key); continue; }
+      if (isOccupied(grid[nb.row][nb.col])) { filled.add(key); continue; }
       const fillChance = Math.max(0.15, 0.85 - nb.row * 0.08);
       if (Math.random() < fillChance) {
-        grid[nb.row][nb.col] = Math.floor(Math.random() * colors);
+        grid[nb.row][nb.col] = createLevelBubble(Math.floor(Math.random() * colors), nb.row);
         filled.add(key);
         queue.push(nb);
       } else {
@@ -337,7 +389,7 @@ function getNextBubble(colors) {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0) existingColors.add(grid[r][c]);
+      if (isOccupied(grid[r][c])) existingColors.add(getBubbleColor(grid[r][c]));
     }
   }
   if (existingColors.size > 0) {
@@ -369,7 +421,7 @@ function getNeighbors(row, col) {
 
 // --- 匹配检测 (BFS) ---
 function findMatch(row, col) {
-  const color = grid[row][col];
+  const color = getBubbleColor(grid[row][col]);
   if (color < 0) return [];
   const visited = new Set();
   const queue = [{ row, col }];
@@ -380,7 +432,7 @@ function findMatch(row, col) {
     matched.push({ row: r, col: c });
     for (const nb of getNeighbors(r, c)) {
       const key = `${nb.row},${nb.col}`;
-      if (!visited.has(key) && grid[nb.row][nb.col] === color) {
+      if (!visited.has(key) && getBubbleColor(grid[nb.row][nb.col]) === color) {
         visited.add(key);
         queue.push(nb);
       }
@@ -395,7 +447,7 @@ function findFloating() {
   const queue = [];
   // 从顶行所有有泡泡的位置开始 BFS
   for (let c = 0; c < colCount(0); c++) {
-    if (grid[0][c] >= 0) {
+    if (isOccupied(grid[0][c])) {
       const key = `0,${c}`;
       connected.add(key);
       queue.push({ row: 0, col: c });
@@ -405,7 +457,7 @@ function findFloating() {
     const { row, col } = queue.shift();
     for (const nb of getNeighbors(row, col)) {
       const key = `${nb.row},${nb.col}`;
-      if (!connected.has(key) && grid[nb.row][nb.col] >= 0) {
+      if (!connected.has(key) && isOccupied(grid[nb.row][nb.col])) {
         connected.add(key);
         queue.push(nb);
       }
@@ -414,7 +466,7 @@ function findFloating() {
   const floating = [];
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < colCount(r); c++) {
-      if (grid[r][c] >= 0 && !connected.has(`${r},${c}`)) {
+      if (isOccupied(grid[r][c]) && !connected.has(`${r},${c}`)) {
         floating.push({ row: r, col: c });
       }
     }
@@ -427,7 +479,7 @@ function recountBubbleCount() {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0) count++;
+      if (isOccupied(grid[r][c])) count++;
     }
   }
   bubbleCount = count;
@@ -441,8 +493,8 @@ function dropCeiling() {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0) {
-        bubbles.push({ row: r, col: c, color: grid[r][c] });
+      if (isOccupied(grid[r][c])) {
+        bubbles.push({ row: r, col: c, bubble: cloneBubble(grid[r][c]) });
       }
     }
   }
@@ -457,7 +509,7 @@ function dropCeiling() {
   for (let r = 0; r < GRID_ROWS; r++) {
     grid[r] = [];
     const cols = colCount(r);
-    for (let c = 0; c < cols; c++) grid[r][c] = -1;
+    for (let c = 0; c < cols; c++) grid[r][c] = null;
   }
 
   // 下移：按原始 x 坐标映射到新行最近的空位，避免奇偶行切换时覆盖丢球
@@ -471,7 +523,7 @@ function dropCeiling() {
       let bestCol = -1;
       let bestDist = Infinity;
       for (let c = 0; c < colCount(targetRow); c++) {
-        if (grid[targetRow][c] >= 0) continue;
+        if (isOccupied(grid[targetRow][c])) continue;
         const targetX = gridToXY(targetRow, c).x;
         const dist = Math.abs(targetX - b.oldX);
         if (dist < bestDist) {
@@ -480,7 +532,7 @@ function dropCeiling() {
         }
       }
       if (bestCol >= 0) {
-        grid[targetRow][bestCol] = b.color;
+        grid[targetRow][bestCol] = cloneBubble(b.bubble);
       }
     }
   }
@@ -489,7 +541,7 @@ function dropCeiling() {
   const nColors = levelConfig.colors;
   for (let c = 0; c < colCount(0); c++) {
     if (Math.random() < 0.7) {
-      grid[0][c] = Math.floor(Math.random() * nColors);
+      grid[0][c] = createLevelBubble(Math.floor(Math.random() * nColors), 0);
       bubbleCount++;
     }
   }
@@ -501,7 +553,7 @@ function dropCeiling() {
   let count = 0;
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0) count++;
+      if (isOccupied(grid[r][c])) count++;
     }
   }
   bubbleCount = count;
@@ -509,7 +561,7 @@ function dropCeiling() {
   // 下压后重新检查死亡线
   for (let r = 0; r < GRID_ROWS; r++) {
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] >= 0) {
+      if (isOccupied(grid[r][c])) {
         const pos = gridToXY(r, c);
         if (pos.y > DEAD_LINE_Y) return true;
       }
@@ -548,13 +600,13 @@ function updateParticles() {
 
 function spawnFallingBubbles(floating) {
   for (const { row, col } of floating) {
-    const color = grid[row][col];
-    if (color < 0) continue;
+    const bubble = cloneBubble(grid[row][col]);
+    if (!isOccupied(bubble)) continue;
     const pos = gridToXY(row, col);
     fallingBubbles.push({
       x: pos.x,
       y: pos.y,
-      color,
+      bubble,
       vx: (Math.random() - 0.5) * 1.4,
       vy: 2.2 + Math.random() * 1.2,
       spin: (Math.random() - 0.5) * 0.08,
@@ -563,7 +615,7 @@ function spawnFallingBubbles(floating) {
       landed: false,
       fade: 0,
     });
-    grid[row][col] = -1;
+    grid[row][col] = null;
     bubbleCount--;
     score += 20;
     totalScore += 20;
@@ -593,7 +645,7 @@ function updateFallingBubbles(dt) {
     b.fade -= 0.08 * dt;
     b.alpha = Math.max(0, b.fade);
     if (b.fade <= 0) {
-      const color = BUBBLE_COLORS[b.color];
+      const color = BUBBLE_COLORS[getBubbleColor(b.bubble)];
       spawnParticles(b.x, b.y, color, 6);
       fallingBubbles.splice(i, 1);
     }
@@ -653,7 +705,7 @@ function updateFlyingBubbles() {
     for (let r = 0; r < GRID_ROWS; r++) {
       if (!grid[r]) continue;
       for (let c = 0; c < grid[r].length; c++) {
-        if (grid[r][c] < 0) continue;
+        if (!isOccupied(grid[r][c])) continue;
         const pos = gridToXY(r, c);
         const ddx = fb.x - pos.x, ddy = fb.y - pos.y;
         const dist = Math.sqrt(ddx * ddx + ddy * ddy);
@@ -681,7 +733,7 @@ function snapBubble(bubbleIndex, hitR, hitC, hitTop = false) {
 
   if (hitTop) {
     for (let c = 0; c < colCount(0); c++) {
-      if (grid[0][c] >= 0) continue;
+      if (isOccupied(grid[0][c])) continue;
       const pos = gridToXY(0, c);
       const d = Math.abs(fb.x - pos.x);
       if (d < bestD) {
@@ -696,7 +748,7 @@ function snapBubble(bubbleIndex, hitR, hitC, hitTop = false) {
     // 优先在碰撞球相邻空位中搜索（标准泡泡龙吸附逻辑）
     const neighbors = getNeighbors(hitR, hitC);
     for (const nb of neighbors) {
-      if (grid[nb.row][nb.col] >= 0) continue; // 已占用
+      if (isOccupied(grid[nb.row][nb.col])) continue; // 已占用
       const pos = gridToXY(nb.row, nb.col);
       const d = Math.hypot(fb.x - pos.x, fb.y - pos.y);
       if (d < bestD) { bestD = d; bestR = nb.row; bestC = nb.col; }
@@ -707,7 +759,7 @@ function snapBubble(bubbleIndex, hitR, hitC, hitTop = false) {
     // 相邻空位全满 / 碰顶 / 直接命中 → 全局搜最近空位
     for (let r = 0; r < GRID_ROWS; r++) {
       for (let c = 0; c < colCount(r); c++) {
-        if (grid[r][c] >= 0) continue;
+        if (isOccupied(grid[r][c])) continue;
         const pos = gridToXY(r, c);
         const d = Math.hypot(fb.x - pos.x, fb.y - pos.y);
         // 只接受距离在合理范围内的吸附（不超过1.3倍直径，防止吸到远处空位）
@@ -720,7 +772,7 @@ function snapBubble(bubbleIndex, hitR, hitC, hitTop = false) {
     // 实在找不到（极端情况），放宽距离限制再搜一次
     for (let r = 0; r < GRID_ROWS; r++) {
       for (let c = 0; c < colCount(r); c++) {
-        if (grid[r][c] >= 0) continue;
+        if (isOccupied(grid[r][c])) continue;
         const pos = gridToXY(r, c);
         const d = Math.hypot(fb.x - pos.x, fb.y - pos.y);
         if (d < bestD) { bestD = d; bestR = r; bestC = c; }
@@ -736,7 +788,7 @@ function snapBubble(bubbleIndex, hitR, hitC, hitTop = false) {
     return;
   }
 
-  grid[bestR][bestC] = fb.color;
+  grid[bestR][bestC] = makeBubble(fb.color, null);
   flyingBubbles.splice(bubbleIndex, 1);
 
   processMatch(bestR, bestC);
@@ -757,14 +809,21 @@ function processMatch(row, col) {
     sfxPop(Math.min(matched.length, 6));
     if (combo > 1) sfxCombo();
 
+    let brokenLayers = 0;
     for (const { row: r, col: c } of matched) {
+      const cell = grid[r][c];
+      if (!isOccupied(cell)) continue;
+      if (cell.layer) {
+        if (breakBubbleLayer(r, c)) brokenLayers++;
+        continue;
+      }
       const pos = gridToXY(r, c);
-      const color = BUBBLE_COLORS[grid[r][c]];
+      const color = BUBBLE_COLORS[getBubbleColor(cell)];
       spawnParticles(pos.x, pos.y, color, 8);
-      grid[r][c] = -1;
+      grid[r][c] = null;
       bubbleCount--;
     }
-    shakeAmount = Math.min(matched.length * 0.5, 6);
+    shakeAmount = Math.min((matched.length + brokenLayers) * 0.5, 6);
     dropMissCounter = 0;
 
     // 检查悬浮泡泡
@@ -812,12 +871,13 @@ function processMatch(row, col) {
 }
 
 // --- 绘制 ---
-function drawBubble(x, y, colorIdx, radius = BUBBLE_R, alpha = 1) {
-  if (colorIdx < 0) return;
+function drawBubble(x, y, bubbleOrColor, radius = BUBBLE_R, alpha = 1) {
+  const bubble = typeof bubbleOrColor === 'number' ? makeBubble(bubbleOrColor, null) : bubbleOrColor;
+  if (!isOccupied(bubble)) return;
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  const color = BUBBLE_COLORS[colorIdx];
+  const color = BUBBLE_COLORS[bubble.color];
   // 主体
   const grad = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.1, x, y, radius);
   grad.addColorStop(0, '#ffffff');
@@ -843,6 +903,43 @@ function drawBubble(x, y, colorIdx, radius = BUBBLE_R, alpha = 1) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  if (bubble.layer === BubbleLayer.ICE) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(180, 235, 255, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - radius * 0.45, y - radius * 0.15);
+    ctx.lineTo(x - radius * 0.1, y - radius * 0.55);
+    ctx.lineTo(x + radius * 0.12, y - radius * 0.1);
+    ctx.lineTo(x + radius * 0.45, y - radius * 0.45);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  if (bubble.layer === BubbleLayer.VINE) {
+    ctx.strokeStyle = 'rgba(60, 135, 45, 0.95)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.92, -Math.PI * 0.85, Math.PI * 0.25);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.65, Math.PI * 0.2, Math.PI * 1.15);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(110, 185, 80, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(x - radius * 0.22, y - radius * 0.55, radius * 0.12, radius * 0.22, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + radius * 0.35, y + radius * 0.05, radius * 0.12, radius * 0.22, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 
@@ -850,7 +947,7 @@ function drawGridBubbles() {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] < 0) continue;
+      if (!isOccupied(grid[r][c])) continue;
       const pos = gridToXY(r, c);
       drawBubble(pos.x, pos.y, grid[r][c]);
     }
@@ -884,7 +981,7 @@ function drawAimLine() {
     for (let r = 0; r < GRID_ROWS && !hit; r++) {
       if (!grid[r]) continue;
       for (let c = 0; c < grid[r].length && !hit; c++) {
-        if (grid[r][c] < 0) continue;
+        if (!isOccupied(grid[r][c])) continue;
         const pos = gridToXY(r, c);
         if (Math.hypot(px - pos.x, py - pos.y) < DIAMETER) hit = true;
       }
@@ -1009,7 +1106,7 @@ function drawFallingBubbles() {
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.rot || 0);
-    drawBubble(0, 0, b.color, BUBBLE_R, b.alpha);
+    drawBubble(0, 0, b.bubble, BUBBLE_R, b.alpha);
     ctx.restore();
   }
 }
@@ -1018,7 +1115,7 @@ function drawGridBubbles() {
   for (let r = 0; r < GRID_ROWS; r++) {
     if (!grid[r]) continue;
     for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] < 0) continue;
+      if (!isOccupied(grid[r][c])) continue;
       const pos = gridToXY(r, c);
       drawBubble(pos.x, pos.y, grid[r][c]);
     }
