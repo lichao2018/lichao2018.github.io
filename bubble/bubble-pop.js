@@ -258,7 +258,8 @@ let combo = 0;
 let comboTimer = 0; // 连击计时（60fps 标准帧）
 const COMBO_WINDOW = 150; // 约 2.5 秒连击窗口
 let shotsSinceDrop = 0;
-let grid = [];           // grid[row][col] = null | { color, layer }
+let grid = [];           // grid[row][col] = null | { color, layers }
+let gridFixedCols = null; // 自定义 layout 时固定列数，避免下压时列数漂移
 let flyingBubbles = [];  // 同时飞行的泡泡队列
 let aimAngle = -Math.PI / 2;
 let particles = [];
@@ -277,10 +278,16 @@ let isProcessing = false; // 消除动画期间锁定射击
 const BubbleLayer = {
   ICE: 'ice',
   VINE: 'vine',
+  WOOD: 'wood',
 };
 
-function makeBubble(color, layer = null) {
-  return { color, layer };
+function normalizeLayers(layers) {
+  if (!Array.isArray(layers)) return [];
+  return layers.filter(l => l === BubbleLayer.ICE || l === BubbleLayer.VINE || l === BubbleLayer.WOOD);
+}
+
+function makeBubble(color, layers = []) {
+  return { color, layers: normalizeLayers(layers) };
 }
 
 function isOccupied(cell) {
@@ -292,40 +299,88 @@ function getBubbleColor(cell) {
 }
 
 function cloneBubble(cell) {
-  return isOccupied(cell) ? makeBubble(cell.color, cell.layer || null) : null;
+  return isOccupied(cell) ? makeBubble(cell.color, cell.layers || []) : null;
 }
 
 function createLevelBubble(color, row) {
-  let layer = null;
+  const layers = [];
   const iceChance = levelConfig?.iceChance || 0;
   const vineChance = levelConfig?.vineChance || 0;
+  const woodChance = levelConfig?.woodChance || 0;
   const roll = Math.random();
   if (roll < iceChance) {
-    layer = BubbleLayer.ICE;
+    layers.push(BubbleLayer.ICE);
   } else if (roll < iceChance + vineChance && row > 0) {
-    layer = BubbleLayer.VINE;
+    layers.push(BubbleLayer.VINE);
+  } else if (roll < iceChance + vineChance + woodChance && row > 0) {
+    layers.push(BubbleLayer.WOOD);
   }
-  return makeBubble(color, layer);
+  return makeBubble(color, layers);
 }
 
 function getLayerBreakColor(layer, bubbleColor) {
   if (layer === BubbleLayer.ICE) return 'rgba(180, 235, 255, 0.95)';
   if (layer === BubbleLayer.VINE) return 'rgba(120, 200, 90, 0.95)';
+  if (layer === BubbleLayer.WOOD) return 'rgba(191, 132, 76, 0.95)';
   return BUBBLE_COLORS[bubbleColor] || '#ffffff';
 }
 
 function breakBubbleLayer(row, col) {
   const cell = grid[row][col];
-  if (!isOccupied(cell) || !cell.layer) return false;
+  if (!isOccupied(cell) || !cell.layers || cell.layers.length === 0) return false;
   const pos = gridToXY(row, col);
-  const layer = cell.layer;
-  grid[row][col] = makeBubble(cell.color, null);
-  spawnParticles(pos.x, pos.y, getLayerBreakColor(layer, cell.color), layer === BubbleLayer.ICE ? 10 : 8);
+  const layer = cell.layers[0];
+  const nextLayers = cell.layers.slice(1);
+  grid[row][col] = makeBubble(cell.color, nextLayers);
+  const particleCount = layer === BubbleLayer.ICE ? 10 : layer === BubbleLayer.WOOD ? 12 : 8;
+  spawnParticles(pos.x, pos.y, getLayerBreakColor(layer, cell.color), particleCount);
   return true;
+}
+
+function parseLayoutObstacleDigit(digit) {
+  if (digit === '1') return BubbleLayer.ICE;
+  if (digit === '2') return BubbleLayer.VINE;
+  if (digit === '3') return BubbleLayer.WOOD;
+  return null;
+}
+
+function buildBubbleFromEncodedCell(cellValue, maxColors) {
+  if (cellValue === 0 || cellValue === '0' || cellValue === null || cellValue === undefined) return null;
+  const text = String(cellValue).replace(/\s+/g, '');
+  if (!/^\d+$/.test(text)) return null;
+
+  const colorCode = Number(text.charAt(0));
+  const color = colorCode - 1;
+  if (!Number.isFinite(color) || color < 0 || color >= maxColors) return null;
+
+  const layers = [];
+  for (const ch of text.slice(1)) {
+    if (ch === '0') continue;
+    const mapped = parseLayoutObstacleDigit(ch);
+    if (mapped) layers.push(mapped);
+  }
+  return makeBubble(color, layers);
+}
+
+function initGridFromLayout(layout, maxColors) {
+  const detectedCols = Math.max(...layout.map(r => Array.isArray(r) ? r.length : 0), 0);
+  gridFixedCols = Math.max(1, Math.min(GRID_COLS, detectedCols || GRID_COLS));
+  let count = 0;
+  for (let r = 0; r < GRID_ROWS; r++) {
+    const rowLayout = Array.isArray(layout[r]) ? layout[r] : [];
+    const cols = colCount(r);
+    for (let c = 0; c < cols; c++) {
+      const bubble = buildBubbleFromEncodedCell(rowLayout[c], maxColors);
+      grid[r][c] = bubble;
+      if (isOccupied(bubble)) count++;
+    }
+  }
+  bubbleCount = count;
 }
 
 // --- 网格 ---
 function colCount(row) {
+  if (gridFixedCols !== null) return gridFixedCols;
   // 奇数行少一列（交错排列）
   return (row % 2 === 0) ? GRID_COLS : GRID_COLS - 1;
 }
@@ -359,6 +414,13 @@ function xyToGrid(x, y) {
 }
 
 function initGrid(levelConfig) {
+  const hasLayout = Array.isArray(levelConfig.layout) && levelConfig.layout.length > 0;
+  if (hasLayout) {
+    const detectedCols = Math.max(...levelConfig.layout.map(r => Array.isArray(r) ? r.length : 0), 0);
+    gridFixedCols = Math.max(1, Math.min(GRID_COLS, detectedCols || GRID_COLS));
+  } else {
+    gridFixedCols = null;
+  }
   grid = [];
   for (let r = 0; r < GRID_ROWS; r++) {
     grid[r] = [];
@@ -371,7 +433,12 @@ function initGrid(levelConfig) {
   dropMissCounter = 0;
   shotsSinceDrop = 0;
 
-  const { colors, pattern, rows, density } = levelConfig;
+  const { colors, pattern, rows, density, layout } = levelConfig;
+
+  if (Array.isArray(layout) && layout.length > 0) {
+    initGridFromLayout(layout, colors);
+    return;
+  }
 
   for (let r = 0; r < rows; r++) {
     const cols = colCount(r);
@@ -931,7 +998,7 @@ function processMatch(row, col) {
     for (const { row: r, col: c } of matched) {
       const cell = grid[r][c];
       if (!isOccupied(cell)) continue;
-      if (cell.layer) {
+      if (cell.layers && cell.layers.length > 0) {
         if (breakBubbleLayer(r, c)) brokenLayers++;
         continue;
       }
@@ -1021,41 +1088,68 @@ function drawBubble(x, y, bubbleOrColor, radius = BUBBLE_R, alpha = 1) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  if (bubble.layer === BubbleLayer.ICE) {
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 1.5, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(180, 235, 255, 0.85)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+  const layers = bubble.layers || [];
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (layer === BubbleLayer.ICE) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 1.5 + i * 0.8, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(180, 235, 255, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(x - radius * 0.45, y - radius * 0.15);
-    ctx.lineTo(x - radius * 0.1, y - radius * 0.55);
-    ctx.lineTo(x + radius * 0.12, y - radius * 0.1);
-    ctx.lineTo(x + radius * 0.45, y - radius * 0.45);
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
+      ctx.beginPath();
+      ctx.moveTo(x - radius * 0.45, y - radius * 0.15);
+      ctx.lineTo(x - radius * 0.1, y - radius * 0.55);
+      ctx.lineTo(x + radius * 0.12, y - radius * 0.1);
+      ctx.lineTo(x + radius * 0.45, y - radius * 0.45);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      continue;
+    }
 
-  if (bubble.layer === BubbleLayer.VINE) {
-    ctx.strokeStyle = 'rgba(60, 135, 45, 0.95)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, radius * 0.92, -Math.PI * 0.85, Math.PI * 0.25);
-    ctx.stroke();
+    if (layer === BubbleLayer.VINE) {
+      ctx.strokeStyle = 'rgba(60, 135, 45, 0.95)';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 0.92, -Math.PI * 0.85, Math.PI * 0.25);
+      ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(x, y, radius * 0.65, Math.PI * 0.2, Math.PI * 1.15);
-    ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 0.65, Math.PI * 0.2, Math.PI * 1.15);
+      ctx.stroke();
 
-    ctx.fillStyle = 'rgba(110, 185, 80, 0.9)';
-    ctx.beginPath();
-    ctx.ellipse(x - radius * 0.22, y - radius * 0.55, radius * 0.12, radius * 0.22, -0.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x + radius * 0.35, y + radius * 0.05, radius * 0.12, radius * 0.22, 0.8, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.fillStyle = 'rgba(110, 185, 80, 0.9)';
+      ctx.beginPath();
+      ctx.ellipse(x - radius * 0.22, y - radius * 0.55, radius * 0.12, radius * 0.22, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + radius * 0.35, y + radius * 0.05, radius * 0.12, radius * 0.22, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+
+    if (layer === BubbleLayer.WOOD) {
+      const boxSize = radius * 1.25;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(0.12 * (i + 1));
+      ctx.fillStyle = 'rgba(152, 101, 57, 0.85)';
+      ctx.fillRect(-boxSize * 0.5, -boxSize * 0.5, boxSize, boxSize);
+      ctx.strokeStyle = 'rgba(88, 50, 18, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-boxSize * 0.5, -boxSize * 0.5, boxSize, boxSize);
+      ctx.beginPath();
+      ctx.moveTo(-boxSize * 0.35, -boxSize * 0.35);
+      ctx.lineTo(boxSize * 0.35, boxSize * 0.35);
+      ctx.moveTo(boxSize * 0.35, -boxSize * 0.35);
+      ctx.lineTo(-boxSize * 0.35, boxSize * 0.35);
+      ctx.strokeStyle = 'rgba(214, 174, 128, 0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   ctx.restore();

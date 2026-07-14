@@ -174,11 +174,13 @@ textarea {
         <div class="note"><strong>网页联调</strong>配置页编辑后下载 JSON，在游戏页点“读取本地配置”即可验证。</div>
         <div class="note"><strong>Android 发布</strong>把确认后的 JSON 文件放到包内并命名为 game-config.json。</div>
         <div class="note"><strong>回退</strong>随时点“读取默认 game-config.json”回到项目默认配置。</div>
+        <div class="note"><strong>layout 编码</strong><code>0</code> 表示空位；其他数字首位是颜色(1红/2绿/3蓝/4黄/5紫/6橙/7粉)，后续每位是一层障碍：<code>1=冰冻</code>、<code>2=藤蔓</code>、<code>3=木箱</code>。例：<code>10</code>红球、<code>111</code>红球双层冰、<code>1123</code>红球冰+藤+木箱。</div>
       </div>
       <div class="field-guide">
         <div class="field"><strong><code>levels[].name</code></strong>关卡显示名。</div>
         <div class="field"><strong><code>levels[].colors</code></strong>该关可出现颜色数，建议 3~7。</div>
-        <div class="field"><strong><code>levels[].pattern</code></strong>布局类型：<code>scattered</code>/<code>rows</code>/<code>triangle</code>/<code>diamond</code>/<code>ring</code>/<code>checkerboard</code>/<code>cross</code>/<code>vshape</code>。</div>
+        <div class="field"><strong><code>levels[].layout</code></strong>二维数组手动铺盘，配置后优先生效。示例：<code>[[10,11,12,13,111,1123,0],[20,21,22,23,20,0,0]]</code>。</div>
+        <div class="field"><strong><code>levels[].pattern</code></strong>随机布局类型（仅当未配置 <code>layout</code> 时生效）：<code>scattered</code>/<code>rows</code>/<code>triangle</code>/<code>diamond</code>/<code>ring</code>/<code>checkerboard</code>/<code>cross</code>/<code>vshape</code>。</div>
         <div class="field"><strong><code>levels[].rows</code></strong>初始生成行数，建议 3~10。</div>
         <div class="field"><strong><code>levels[].density</code></strong>散列密度，0~1；仅散列类布局影响明显。</div>
         <div class="field"><strong><code>levels[].dropRate</code></strong>几次未消除后下压一次，值越小越难。</div>
